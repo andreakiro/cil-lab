@@ -25,6 +25,6 @@ chmod 600 ~/.kaggle/kaggle.json
 ```
 Once the token is set up, just use the in-line command:
 ```
-!kaggle competitions submit -c cil-collaborative-filtering-2022 -f submission.zip -m "message"
+kaggle competitions submit -c cil-collaborative-filtering-2022 -f submission.zip -m "message"
 ```
 to submit the file `submission.zip` to the competition leaderboard.
