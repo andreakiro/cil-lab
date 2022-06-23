@@ -12,20 +12,7 @@ class SVD(BaseModel):
         
     def fit(self, X, y, W, test_size = 0, normalization = "zscore"):
         """
-        Fit the decomposing matrix U and V using ALS optimization algorithm
 
-        Parameters
-        ----------
-        X : np.array(N_USERS, N_MOVIES)
-            input matrix
-
-        y : Ignored
-            not used, present for API consistency by convention.
-
-        W : np.array(N_USERS, N_MOVIES)
-            mask matrix for observed entries; True entries in the mask corresponds
-            to observed values, False entries to unobserved values
-        
         test_size : float [0,1] (optional)
             percentage of the training data to be used as validation split;
             set to 0 when the model has to be used for inference
@@ -33,6 +20,7 @@ class SVD(BaseModel):
         normalization : str or None
             technique to be used to normalize the data, None for no normalization
         """
+        self.fit.__doc__ = BaseModel.fit.__doc__ + self.fit.__doc__ 
 
         X_train, W_train, X_test, W_test = self.train_test_split(X, W, test_size)
 
@@ -64,19 +52,8 @@ class SVD(BaseModel):
         
 
     def predict(self, X, invert_norm = True):
-        """
-        Predict ratings for every user and item;
-        fit method must be called before this, otherwise an exception will be raised
+        self.predict.__doc__ = BaseModel.predict.__doc__ 
 
-        Parameters
-        ----------
-        X : np.array(N_USERS, N_MOVIES)
-            input matrix
-
-        invert_norm : bool
-            boolean flag to invert the normalization of the predictions
-            set to False if the input data were not normalized
-        """
         assert self.fitted
         pred = self.U.dot(self.S).dot(self.Vt)
         if invert_norm:
@@ -86,19 +63,6 @@ class SVD(BaseModel):
 
     def fit_transform(self, X, y, W, test_size = 0, normalization = "zscore", invert_norm = True):
         """
-        Fit data and return predictions on the same matrix
-
-        Parameters
-        ----------
-        X : pd.Dataframe.Column
-            dataframe column containing coordinates of the observed entries in the matrix
-
-        y : int 
-            values of the observed entries in the matrix
-
-        W : np.array(N_USERS, N_MOVIES)
-            mask matrix for observed entries; True entries in the mask corresponds
-            to observed values, False entries to unobserved values
 
         test_size : float [0,1] (optional)
             percentage of the training data to be used as validation split;
@@ -110,25 +74,16 @@ class SVD(BaseModel):
         invert_norm : bool
             boolean flag to invert the normalization of the predictions
             set to False if the input data were not normalized
-
-        Return
-        ------
-        X : np.array(N_USERS, N_MOVIES)
-            predicted complete matrix
         """
+        self.fit_transform.__doc__ = BaseModel.fit_transform.__doc__ + self.fit_transform.__doc__
+
         self.fit(X, y, W, test_size, normalization)
         return self.predict(X, invert_norm)
 
     
     def log_model_info(self, path = "./log/", format = "json"):
-        """
-        Log model and training information
+        self.log_model_info.__doc__ = BaseModel.log_model_info.__doc__
 
-        Return
-        ------
-        info : dict
-            dictionary containing model info
-        """
         model_info = {
             "id" : self.model_id,
             "name" : self.model_name,

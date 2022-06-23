@@ -40,20 +40,6 @@ class ALS(BaseModel):
         
     def fit(self, X, y, W, epochs = 10, λ = 0.1, test_size = 0, normalization = 'zscore', n_jobs = -1):
         """
-        Fit the decomposing matrix U and V using ALS optimization algorithm
-
-        Parameters        random_state : int (optional)
-            random seed for non-deterministic behaviours in the class
-        ----------
-        X : np.array(N_USERS, N_MOVIES)
-            input matrix
-
-        y : Ignored
-            not used, present for API consistency by convention.
-
-        W : np.array(N_USERS, N_MOVIES)
-            mask matrix for observed entries; True entries in the mask corresponds
-            to observed values, False entries to unobserved values
 
         epochs : int
             number of iterations to train the algorithm
@@ -71,8 +57,9 @@ class ALS(BaseModel):
         n_jobs : int (optional)
             number of cores that can be used for parallel optimization;
             set to -1 to use all the available cores in the machine
-        
         """
+        self.fit.__doc__ = BaseModel.fit.__doc__ + self.fit.__doc__ 
+
         self.λ = λ
         self.epochs = epochs
         X_train, W_train, X_test, W_test = self.train_test_split(X, W, test_size=test_size)
@@ -108,19 +95,8 @@ class ALS(BaseModel):
 
     
     def predict(self, X, invert_norm=True):
-        """
-        Predict ratings for every user and item;
-        fit method must be called before this, otherwise an exception will be raised
+        self.predict.__doc__ = BaseModel.predict.__doc__ 
 
-        Parameters
-        ----------
-        X : Ignored
-            the prediction is always performed on the X used to fit the model
-        
-        invert_norm : bool
-            boolean flag to invert the normalization of the predictions
-            set to False if the input data were not normalized
-        """
         assert self.fitted
         pred = np.dot(self.U, self.V)
         if invert_norm:
@@ -130,19 +106,6 @@ class ALS(BaseModel):
 
     def fit_transform(self, X, y, W, epochs = 10, λ = 0.1, test_size = 0, normalization = 'zscore', n_jobs = -1, invert_norm = True):
         """
-        Fit data and return predictions on the same matrix
-
-        Parameters
-        ----------
-        X : pd.Dataframe.Column
-            dataframe column containing coordinates of the observed entries in the matrix
-
-        y : int 
-            values of the observed entries in the matrix
-
-        W : np.array(N_USERS, N_MOVIES)
-            mask matrix for observed entries; True entries in the mask corresponds
-            to observed values, False entries to unobserved values
 
         epochs : int
             number of iterations to train the algorithm
@@ -161,6 +124,8 @@ class ALS(BaseModel):
             number of cores that can be used for parallel optimization;
             set to -1 to use all the available cores in the machine
         """
+        self.fit_transform.__doc__ = BaseModel.fit_transform.__doc__ + self.fit_transform.__doc__
+
         self.fit(X, y, W, epochs, λ, test_size, normalization, n_jobs)
         pred = self.predict(X, invert_norm=invert_norm)
         return pred
@@ -193,17 +158,8 @@ class ALS(BaseModel):
 
 
     def log_model_info(self, path = "./log/", format = "json"):
-        """
-        Log model and training information
+        self.log_model_info.__doc__ = BaseModel.log_model_info.__doc__
 
-        Parameters
-        ----------
-        path : str (optional)
-            path to the folder where the logs have to be stored
-
-        format : str (optional)
-            format of the log file, supported formats: ['json'] 
-        """
         model_info = {
             "id" : self.model_id,
             "name" : self.model_name,
