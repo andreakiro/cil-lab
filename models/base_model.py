@@ -65,7 +65,6 @@ class BaseModel(ABC):
         """
         Normalize the input matrix
         """
-        assert X is not None
         if technique == "zscore":
             # save columns mean and std to invert z-score
             self.μ = np.array(np.broadcast_to(np.nanmean(X, axis=axis)[:], (X.shape)))
@@ -118,7 +117,7 @@ class BaseModel(ABC):
             mask array for observed entries
         """
         # parameters must be numpy array
-        assert isinstance(y_true, np.ndarray) and isinstance(y_true, np.ndarray) and isinstance(y_true, np.ndarray)
+        assert isinstance(y_true, np.ndarray) and isinstance(y_pred, np.ndarray) and isinstance(y_mask, np.ndarray)
     
         # flatten the matrices
         y_true, y_pred, y_mask = y_true.flatten(), y_pred.flatten(), y_mask.flatten()
