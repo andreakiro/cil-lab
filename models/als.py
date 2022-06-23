@@ -2,7 +2,8 @@ import numpy as np
 from models.base_model import BaseModel
 from models.svd import SVD
 import json
-
+from joblib import Parallel, delayed
+import multiprocessing
 
 class ALS(BaseModel):
     """
@@ -94,16 +95,35 @@ class ALS(BaseModel):
         # B = np.dot(self.U.T, self.X_train)
         # self.V = np.linalg.solve(A, B)
 
-        # optimize matrix U
-        for i, Wi in enumerate(self.W_train):
+        # # optimize matrix U
+        # for i, Wi in enumerate(self.W_train):
+        #     A = np.dot(self.V, np.dot(np.diag(Wi), self.V.T)) + self.λ * np.eye(self.k)
+        #     B = np.dot(self.V, np.dot(np.diag(Wi), self.X_train[i].T))
+        #     self.U[i] = np.linalg.solve(A, B).T
+        # # optimize matrix V
+        # for j, Wj in enumerate(self.W_train.T):
+        #     A = np.dot(self.U.T, np.dot(np.diag(Wj), self.U)) + self.λ * np.eye(self.k)
+        #     B = np.dot(self.U.T, np.dot(np.diag(Wj), self.X_train[:, j]))
+        #     self.V[:,j] = np.linalg.solve(A, B)
+
+        # parallel implementation of the loops
+        inputs = enumerate(self.W_train)
+        def optimization(i, Wi):
             A = np.dot(self.V, np.dot(np.diag(Wi), self.V.T)) + self.λ * np.eye(self.k)
             B = np.dot(self.V, np.dot(np.diag(Wi), self.X_train[i].T))
-            self.U[i] = np.linalg.solve(A, B).T
-        # optimize matrix V
-        for j, Wj in enumerate(self.W_train.T):
+            return np.linalg.solve(A, B).T
+        num_cores = multiprocessing.cpu_count()
+        result = Parallel(n_jobs=num_cores)(delayed(optimization)(i, Wi) for i, Wi in inputs)
+        self.U = np.stack(result, axis=0)
+
+        inputs = enumerate(self.W_train.T)
+        def optimization(j, Wj):
             A = np.dot(self.U.T, np.dot(np.diag(Wj), self.U)) + self.λ * np.eye(self.k)
             B = np.dot(self.U.T, np.dot(np.diag(Wj), self.X_train[:, j]))
-            self.V[:,j] = np.linalg.solve(A, B)
+            return np.linalg.solve(A, B)
+        num_cores = multiprocessing.cpu_count()
+        result = Parallel(n_jobs=num_cores)(delayed(optimization)(j, Wj) for j, Wj in inputs)
+        self.V = np.stack(result, axis=1)
 
     def predict(self, X, invert_norm=True):
         """
