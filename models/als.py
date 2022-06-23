@@ -12,6 +12,15 @@ class ALS(BaseModel):
     
     Parameters
     ----------
+    model_id : int
+        model identification number
+
+    n_users : int
+        rows of the input matrix
+
+    n_movies : int
+        columns of the input matrix
+
     epochs : int
         number of iterations to train the algorithm
         
@@ -22,23 +31,41 @@ class ALS(BaseModel):
     λ : float
         regularization term for item/user latent factors
 
-    verbose : int
-              verbose level of the mode, 0 for no verbose, 1 for verbose
+    verbose : int (optional)
+        verbose level of the mode, 0 for no verbose, 1 for verbose
+
+    test_size : float [0,1] (optional)
+        percentage of the training data to be used as validation split;
+        set to 0 when the model has to be used for inference
+    
+    random_state : int (optional)
+        random seed for non-deterministic behaviours in the class
+    
+    n_jobs : int (optional)
+        number of cores that can be used for parallel optimization;
+        set to -1 to use all the available cores in the machine
     """
 
-    def __init__(self, model_id, n_users, n_movies, epochs, k, λ, verbose = 0, test_size = 0, random_state = 42):
+    def __init__(self, model_id, n_users, n_movies, epochs, k, λ, verbose = 0, test_size = 0, random_state = 42, n_jobs = -1):
         super().__init__(model_id = model_id, n_users = n_users, n_movies = n_movies, verbose = verbose, test_size = test_size, random_state=random_state)
         self.λ = λ
         self.epochs = epochs
         self.k = k  
         self.model_name = "ALS"
+        self.n_jobs = n_jobs
 
         
     def fit(self, X, y):
         """
-        pass in training and testing at the same time to record
-        model convergence, assuming both dataset is in the form
-        of User x Item matrix with cells as ratings
+        Fit the decomposing matrix U and V using ALS optimization algorithm
+
+        Parameters
+        ----------
+        X : pd.Dataframe.Column
+            dataframe column containing coordinates of the observed entries in the matrix
+
+        y : int 
+            values of the observed entries in the matrix
         """
 
         self.X_train, self.W_train, self.X_test, self.W_test = self.train_test_split(X, y, test_size=self.test_size, random_state=self.random_state)
@@ -72,6 +99,14 @@ class ALS(BaseModel):
     def fit_transform(self, X, y):
         """
         Fit data and return predictions on the same matrix
+
+        Parameters
+        ----------
+        X : pd.Dataframe.Column
+            dataframe column containing coordinates of the observed entries in the matrix
+
+        y : int 
+            values of the observed entries in the matrix
         """
         self.fit(X, y)
         pred = self.predict(X, invert_norm=True)
@@ -82,37 +117,16 @@ class ALS(BaseModel):
         """
         Alternating Least Square optimization step
         """
-        # # NOT OPTIMAL ALS
-        # # USE ONLY FOR DEBUG BECAUSE IT'S FASTER TO RUN
-
-        # # solve u* as linear system Au* = B
-        # A = np.dot(self.V, self.V.T) + self.λ * np.eye(self.k)
-        # B = np.dot(self.V, self.X_train.T)
-        # self.U = np.linalg.solve(A,B).T
-
-        # # solve v* as linear system Av* = B
-        # A = np.dot(self.U.T, self.U) + self.λ * np.eye(self.k)
-        # B = np.dot(self.U.T, self.X_train)
-        # self.V = np.linalg.solve(A, B)
-
-        # # optimize matrix U
-        # for i, Wi in enumerate(self.W_train):
-        #     A = np.dot(self.V, np.dot(np.diag(Wi), self.V.T)) + self.λ * np.eye(self.k)
-        #     B = np.dot(self.V, np.dot(np.diag(Wi), self.X_train[i].T))
-        #     self.U[i] = np.linalg.solve(A, B).T
-        # # optimize matrix V
-        # for j, Wj in enumerate(self.W_train.T):
-        #     A = np.dot(self.U.T, np.dot(np.diag(Wj), self.U)) + self.λ * np.eye(self.k)
-        #     B = np.dot(self.U.T, np.dot(np.diag(Wj), self.X_train[:, j]))
-        #     self.V[:,j] = np.linalg.solve(A, B)
-
         # parallel implementation of the loops
+        if self.n_jobs == -1: num_cores = multiprocessing.cpu_count()
+        else: num_cores = self.n_jobs
+
         inputs = enumerate(self.W_train)
         def optimization(i, Wi):
             A = np.dot(self.V, np.dot(np.diag(Wi), self.V.T)) + self.λ * np.eye(self.k)
             B = np.dot(self.V, np.dot(np.diag(Wi), self.X_train[i].T))
             return np.linalg.solve(A, B).T
-        num_cores = multiprocessing.cpu_count()
+
         result = Parallel(n_jobs=num_cores)(delayed(optimization)(i, Wi) for i, Wi in inputs)
         self.U = np.stack(result, axis=0)
 
@@ -121,13 +135,19 @@ class ALS(BaseModel):
             A = np.dot(self.U.T, np.dot(np.diag(Wj), self.U)) + self.λ * np.eye(self.k)
             B = np.dot(self.U.T, np.dot(np.diag(Wj), self.X_train[:, j]))
             return np.linalg.solve(A, B)
-        num_cores = multiprocessing.cpu_count()
         result = Parallel(n_jobs=num_cores)(delayed(optimization)(j, Wj) for j, Wj in inputs)
         self.V = np.stack(result, axis=1)
 
     def predict(self, X, invert_norm=True):
         """
         Predict ratings for every user and item
+
+        Parameters
+        ----------
+        X : pd.Dataframe.Column
+            dataframe column containing coordinates of the observed entries in the matrix
+            this parameter is not really used, as the prediction is performed using U and V
+            computed during the fit; the parameter is there for compatibility
         """
         pred = np.dot(self.U, self.V)
         if invert_norm:
@@ -137,6 +157,14 @@ class ALS(BaseModel):
     def log_model_info(self, path = "./log/", format = "json"):
         """
         Log model and training information
+
+        Parameters
+        ----------
+        path : str (optional)
+            path to the folder where the logs have to be stored
+
+        format : str (optional)
+            format of the log file, supported formats: ['json'] 
         """
         model_info = {
             "id" : self.model_id,
