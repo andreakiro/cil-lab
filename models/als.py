@@ -36,8 +36,7 @@ class ALS(BaseModel):
         super().__init__(model_id = model_id, n_users = n_users, n_movies = n_movies, verbose = verbose, random_state=random_state)
         self.k = k  
         self.model_name = "ALS"
-        self.X_train = None
-
+        self.fitted = False
         
     def fit(self, X, y, W, epochs = 10, λ = 0.1, test_size = 0, normalization = 'zscore', n_jobs = -1):
         """
@@ -76,30 +75,31 @@ class ALS(BaseModel):
         """
         self.λ = λ
         self.epochs = epochs
-        self.X_train, self.W_train, self.X_test, self.W_test = self.train_test_split(X, W, test_size=test_size)
+        X_train, W_train, X_test, W_test = self.train_test_split(X, W, test_size=test_size)
   
         # normalize input matrix
         if normalization:
-            self.normalize(technique=normalization)
+            X_train = self.normalize(X_train, technique=normalization)
 
         # impute missing values
-        self.impute_missing_values()
+        X_train = self.impute_missing_values(X_train)
 
         # perform SVD decomposition
-        U, Σ, Vt = np.linalg.svd(self.X_train, full_matrices=False)
+        U, Σ, Vt = np.linalg.svd(X_train, full_matrices=False)
         # keep the top k components
         S = np.zeros((self.n_movies, self.n_movies)) 
         S[:self.k, :self.k] = np.diag(Σ[:self.k])
         # initialize U and V
         self.U = U[:, :self.k]
         self.V = np.dot(S[:self.k, :self.k], Vt[:self.k, :])
-  
+        self.fitted = True
+
         for epoch in range(self.epochs):
-            self._als_step(n_jobs=n_jobs)
-            predictions_train = self.predict(self.X_train, invert_norm=False)
-            predictions_test = self.predict(self.X_test, invert_norm=True)
-            train_rmse = self.score(self.X_train, predictions_train, self.W_train)
-            val_rmse = self.score(self.X_test, predictions_test, self.W_test)
+            self._als_step(X_train, W_train, n_jobs=n_jobs)
+            predictions_train = self.predict(X_train, invert_norm=False)
+            predictions_test = self.predict(X_test, invert_norm=True)
+            train_rmse = self.score(X_train, predictions_train, W_train)
+            val_rmse = self.score(X_test, predictions_test, W_test)
             if self.verbose:    
                 print(f"Epoch {epoch+1}, train_rmse: {train_rmse}, val_rmse: {val_rmse}")
             # log rmse
@@ -121,7 +121,7 @@ class ALS(BaseModel):
             boolean flag to invert the normalization of the predictions
             set to False if the input data were not normalized
         """
-        assert self.X_train is not None
+        assert self.fitted
         pred = np.dot(self.U, self.V)
         if invert_norm:
             pred = self.invert_normalization(pred)
@@ -166,7 +166,7 @@ class ALS(BaseModel):
         return pred
 
 
-    def _als_step(self, n_jobs):
+    def _als_step(self, X, W, n_jobs):
         """
         Alternating Least Square optimization step
         """
@@ -174,19 +174,19 @@ class ALS(BaseModel):
         if n_jobs == -1: num_cores = multiprocessing.cpu_count()
         else: num_cores = n_jobs
 
-        inputs = enumerate(self.W_train)
+        inputs = enumerate(W)
         def optimization(i, Wi):
             A = np.dot(self.V, np.dot(np.diag(Wi), self.V.T)) + self.λ * np.eye(self.k)
-            B = np.dot(self.V, np.dot(np.diag(Wi), self.X_train[i].T))
+            B = np.dot(self.V, np.dot(np.diag(Wi), X[i].T))
             return np.linalg.solve(A, B).T
 
         result = Parallel(n_jobs=num_cores)(delayed(optimization)(i, Wi) for i, Wi in inputs)
         self.U = np.stack(result, axis=0)
 
-        inputs = enumerate(self.W_train.T)
+        inputs = enumerate(W.T)
         def optimization(j, Wj):
             A = np.dot(self.U.T, np.dot(np.diag(Wj), self.U)) + self.λ * np.eye(self.k)
-            B = np.dot(self.U.T, np.dot(np.diag(Wj), self.X_train[:, j]))
+            B = np.dot(self.U.T, np.dot(np.diag(Wj), X[:, j]))
             return np.linalg.solve(A, B)
         result = Parallel(n_jobs=num_cores)(delayed(optimization)(j, Wj) for j, Wj in inputs)
         self.V = np.stack(result, axis=1)

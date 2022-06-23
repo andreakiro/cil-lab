@@ -61,44 +61,44 @@ class BaseModel(ABC):
         return X_train, W_train, X_test, W_test
     
 
-    def normalize(self, axis = 0, technique = "zscore"):
+    def normalize(self, X, axis = 0, technique = "zscore"):
         """
         Normalize the input matrix
         """
-        assert self.X_train is not None
+        assert X is not None
         if technique == "zscore":
             # save columns mean and std to invert z-score
-            self.μ = np.array(np.broadcast_to(np.nanmean(self.X_train, axis=axis)[:], (self.X_train.shape)))
-            self.σ = np.array(np.broadcast_to(np.nanstd(self.X_train, axis=axis)[:], (self.X_train.shape)))
+            self.μ = np.array(np.broadcast_to(np.nanmean(X, axis=axis)[:], (X.shape)))
+            self.σ = np.array(np.broadcast_to(np.nanstd(X, axis=axis)[:], (X.shape)))
             # normalize data using z-score
-            self.X_train = stats.zscore(self.X_train, axis=axis, nan_policy='omit')
+            X = stats.zscore(X, axis=axis, nan_policy='omit')
         else:
             raise ValueError(f"Technique '{technique}' is not valid.")
+        return X
 
 
     def invert_normalization(self, M, technique = "zscore"):
         """
         Invert normalization (mostly for prediction results)
         """
-        # normalization was not done in the first place
-        assert self.X_train is not None
         if technique == "zscore":
             return np.multiply(M, self.σ) + self.μ 
         else:
             raise ValueError(f"Technique '{technique}' is not valid.")
 
 
-    def impute_missing_values(self, strategy="zero"):
+    def impute_missing_values(self, X, strategy="zero"):
         """
         Impute missing (unobserved) values in the input matrix
         """
-        assert self.X_train is not None
+        assert X is not None
         # impute values using sklearn imputation
         from sklearn.impute import SimpleImputer
         if strategy == "zero":
-            self.X_train = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=0).fit_transform(self.X_train)
+            X = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=0).fit_transform(X)
         else:
             raise ValueError(f"Strategy '{strategy}' is not valid.")
+        return X
 
 
     @staticmethod

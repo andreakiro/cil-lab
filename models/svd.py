@@ -8,6 +8,7 @@ class SVD(BaseModel):
         super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)
         self.k = k  
         self.model_name = "SVD"
+        self.fitted = False
         
     def fit(self, X, y, W, test_size = 0, normalization = "zscore"):
         """
@@ -33,7 +34,7 @@ class SVD(BaseModel):
             technique to be used to normalize the data, None for no normalization
         """
 
-        self.X_train, self.W_train, self.X_test, self.W_test = self.train_test_split(X, W, test_size)
+        X_train, W_train, X_test, W_test = self.train_test_split(X, W, test_size)
 
         # the number of singular values must be lower than
         # the lowest dimension of the matrix
@@ -42,24 +43,25 @@ class SVD(BaseModel):
 
         # normalize input matrix
         if normalization:
-            self.normalize(technique=normalization)
+            X_train = self.normalize(X_train, technique=normalization)
 
         # impute missing values
-        self.impute_missing_values()
+        X_train = self.impute_missing_values(X_train)
 
         # decompose the original matrix
-        self.U, Σ, self.Vt = np.linalg.svd(self.X_train, full_matrices=False)
+        self.U, Σ, self.Vt = np.linalg.svd(X_train, full_matrices=False)
 
         # keep the top k components
         self.S = np.zeros((self.n_movies, self.n_movies)) 
         self.S[:self.k, :self.k] = np.diag(Σ[:self.k])
-
+        self.fitted = True
+        
         # log training and validation rmse
-        train_rmse = self.score(self.X_train, self.predict(self.X_train, invert_norm=False), self.W_train)
-        val_rmse = self.score(self.X_test, self.predict(self.X_test, invert_norm=True), self.W_test)
+        train_rmse = self.score(X_train, self.predict(X_train, invert_norm=False), W_train)
+        val_rmse = self.score(X_test, self.predict(X_test, invert_norm=True), W_test)
         self.train_rmse.append(train_rmse)
         self.validation_rmse.append(val_rmse)
-
+        
 
     def predict(self, X, invert_norm = True):
         """
@@ -75,6 +77,7 @@ class SVD(BaseModel):
             boolean flag to invert the normalization of the predictions
             set to False if the input data were not normalized
         """
+        assert self.fitted
         pred = self.U.dot(self.S).dot(self.Vt)
         if invert_norm:
             pred = self.invert_normalization(pred)
