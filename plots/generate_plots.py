@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 import json
 import os
+import seaborn as sns
 
 
 def main():
@@ -19,12 +20,11 @@ def main():
      train = sorted(train, key=lambda x: x[0])
      val = sorted(val, key=lambda x: x[0])
 
-     plt.style.use('seaborn')
+     sns.set_style("white")
      #plt.plot([t[0] for t in train], [t[1] for t in train], label = 'Training error')
      plt.plot([t[0] for t in val], [t[1] for t in val], label = 'Validation error')
-     plt.ylabel('RMSE', fontsize = 14)
-     plt.xlabel('SVD rank', fontsize = 14)
-     plt.title('Learning curves.', fontsize = 18, y = 1.03)
+     plt.ylabel('RMSE', fontsize = 12)
+     plt.xlabel('SVD rank', fontsize = 12)
      plt.legend()
      plt.savefig("./plots/SVD.png")
 

@@ -12,46 +12,22 @@ def get_input_matrix():
 
     Return
     ----------
-    (Id, Prediction): Dataframe Column
-        The dataframe column containing entries coordinates and the dataframe
-        column containing target values
+    (X, W): (np.array(N_USERS, N_MOVIES), np.array(N_USERS, N_MOVIES))
+        The input array with the true ratings and np.nan where no ratings where given and the 
+        mask array containing True where the entries are given and False otherwise.
     '''
-
     data_pd = pd.read_csv('./data/data_train.csv') 
-    return data_pd.Id, data_pd.Prediction
-
-def populate_matrices(X, y, n_users, n_movies):
-    """
-    Populate data and mask matrices from sparse initial data
-
-    Parameters
-    ----------
-    X: pd.dataFrame(Id)   
-        The dataframe column containing entries coordinates
-    y: pd.dataFrame(Prediction)   
-        The dataframe column containing the target value for each coordinate
-    n_users: int 
-        number of rows of the matrices
-    n_movies: int
-        number of columns of the matrices
-    
-    Return
-    ----------
-    (data, W): (np.array(N_USERS, N_MOVIES), np.array(N_USERS, N_MOVIES))
-        The input array with the true ratings and Nan where no ratings where given and the 
-        array containing 1 where the entries are given and 0 otherwise.
-    '''
-    """
-    users, movies = [np.squeeze(arr) for arr in np.split(X.str.extract('r(\d+)_c(\d+)').values.astype(int) - 1, 2, axis=-1)]
-    predictions = y.values
+    users, movies = [np.squeeze(arr) for arr in np.split(data_pd.Id.str.extract('r(\d+)_c(\d+)').values.astype(int) - 1, 2, axis=-1)]
+    predictions = data_pd.Prediction.values
     # create data matrix
-    data = np.full((n_users, n_movies), np.nan)
-    W = np.full((n_users, n_movies), False)
+    X = np.full((N_USERS, N_MOVIES), np.nan)
+    W = np.full((N_USERS, N_MOVIES), False)
     # populate data matrix
     for user, movie, pred in zip(users, movies, predictions): 
-        data[user][movie] = pred
+        X[user][movie] = pred
         W[user][movie] = True if not math.isnan(pred) else False
-    return data, W
+    return X, W
+
 
 def generate_submission(predictions, name="submission.zip", compression="zip"):
     '''

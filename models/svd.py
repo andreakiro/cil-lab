@@ -4,14 +4,36 @@ import json
 
 class SVD(BaseModel):
 
-    def __init__(self, model_id, n_users, n_movies, k, verbose = 0, test_size = 0, random_state=42):
-        super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, test_size = test_size, random_state=random_state)
+    def __init__(self, model_id, n_users, n_movies, k, verbose = 0, random_state=42):
+        super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)
         self.k = k  
         self.model_name = "SVD"
         
-    def fit(self, X, y):
+    def fit(self, X, y, W, test_size = 0, normalization = "zscore"):
+        """
+        Fit the decomposing matrix U and V using ALS optimization algorithm
 
-        self.X_train, self.W_train, self.X_test, self.W_test = self.train_test_split(X, y, test_size=self.test_size, random_state=self.random_state)
+        Parameters
+        ----------
+        X : np.array(N_USERS, N_MOVIES)
+            input matrix
+
+        y : Ignored
+            not used, present for API consistency by convention.
+
+        W : np.array(N_USERS, N_MOVIES)
+            mask matrix for observed entries; True entries in the mask corresponds
+            to observed values, False entries to unobserved values
+        
+        test_size : float [0,1] (optional)
+            percentage of the training data to be used as validation split;
+            set to 0 when the model has to be used for inference
+        
+        normalization : str or None
+            technique to be used to normalize the data, None for no normalization
+        """
+
+        self.X_train, self.W_train, self.X_test, self.W_test = self.train_test_split(X, W, test_size)
 
         # the number of singular values must be lower than
         # the lowest dimension of the matrix
@@ -19,7 +41,8 @@ class SVD(BaseModel):
         assert (self.k <= num_singular_values)
 
         # normalize input matrix
-        self.normalize()
+        if normalization:
+            self.normalize(technique=normalization)
 
         # impute missing values
         self.impute_missing_values()
@@ -37,22 +60,71 @@ class SVD(BaseModel):
         self.train_rmse.append(train_rmse)
         self.validation_rmse.append(val_rmse)
 
+
     def predict(self, X, invert_norm = True):
+        """
+        Predict ratings for every user and item;
+        fit method must be called before this, otherwise an exception will be raised
+
+        Parameters
+        ----------
+        X : np.array(N_USERS, N_MOVIES)
+            input matrix
+
+        invert_norm : bool
+            boolean flag to invert the normalization of the predictions
+            set to False if the input data were not normalized
+        """
         pred = self.U.dot(self.S).dot(self.Vt)
         if invert_norm:
             pred = self.invert_normalization(pred)
         return pred
 
-    def fit_transform(self, X, y):
-        self.fit(X, y)
-        return self.predict(X)
 
-    def get_matrices(self):
-        return self.U, self.S, self.Vt
+    def fit_transform(self, X, y, W, test_size = 0, normalization = "zscore", invert_norm = True):
+        """
+        Fit data and return predictions on the same matrix
+
+        Parameters
+        ----------
+        X : pd.Dataframe.Column
+            dataframe column containing coordinates of the observed entries in the matrix
+
+        y : int 
+            values of the observed entries in the matrix
+
+        W : np.array(N_USERS, N_MOVIES)
+            mask matrix for observed entries; True entries in the mask corresponds
+            to observed values, False entries to unobserved values
+
+        test_size : float [0,1] (optional)
+            percentage of the training data to be used as validation split;
+            set to 0 when the model has to be used for inference
+        
+        normalization : str or None
+            technique to be used to normalize the data, None for no normalization
+        
+        invert_norm : bool
+            boolean flag to invert the normalization of the predictions
+            set to False if the input data were not normalized
+
+        Return
+        ------
+        X : np.array(N_USERS, N_MOVIES)
+            predicted complete matrix
+        """
+        self.fit(X, y, W, test_size, normalization)
+        return self.predict(X, invert_norm)
+
     
     def log_model_info(self, path = "./log/", format = "json"):
         """
         Log model and training information
+
+        Return
+        ------
+        info : dict
+            dictionary containing model info
         """
         model_info = {
             "id" : self.model_id,

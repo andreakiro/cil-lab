@@ -1,16 +1,14 @@
 from abc import ABC, abstractmethod
-from tkinter import W
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 import math
 from sklearn.metrics import mean_squared_error
-from utils.utils import populate_matrices
 
 class BaseModel(ABC):
 
-    def __init__(self, model_id, n_users, n_movies, verbose = 0, random_state = 42, test_size = 0):
+    def __init__(self, model_id, n_users, n_movies, verbose = 0, random_state = 42):
         self.model_id = model_id
         # set number of users and movies
         self.n_users = n_users
@@ -21,7 +19,6 @@ class BaseModel(ABC):
         # set verbose level
         self.verbose = verbose
         self.random_state = random_state
-        self.test_size = test_size
 
     @abstractmethod
     def fit(self, X, y, **kwargs):
@@ -40,21 +37,28 @@ class BaseModel(ABC):
         pass
 
 
-    def train_test_split(self, X, y, test_size=0, random_state=42):
+    def train_test_split(self, X, W, test_size):
         """
         Create training and test matrices.
         """
+        np.random.seed(seed=self.random_state)
         if test_size != 0:
-            from sklearn.model_selection import train_test_split
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
-
-            data_train, W_train = populate_matrices(X_train, y_train, self.n_users, self.n_movies)
-            data_test, W_test = populate_matrices(X_test, y_test, self.n_users, self.n_movies)
+            # initialize training and test vectors
+            W_train = np.copy(W)
+            W_test = np.copy(W)
+            X_train = np.copy(X)
+            X_test = np.copy(X)
+            # get training and test masks
+            W_test[W] = np.random.random(*W[W].shape) > test_size
+            W_train = np.multiply(W, ~W_test)
+            # mask data values
+            X_train[~W_train] = np.nan
+            X_test[~W_test] = np.nan
         else:
-            data_train, W_train = populate_matrices(X, y, self.n_users, self.n_movies)
-            data_test, W_test = np.array([]), np.array([])
-
-        return data_train, W_train, data_test, W_test
+            X_train, W_train = X, W
+            X_test, W_test = np.array([]), np.array([])
+            
+        return X_train, W_train, X_test, W_test
     
 
     def normalize(self, axis = 0, technique = "zscore"):

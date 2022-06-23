@@ -9,7 +9,7 @@ from models.svd import SVD
 def main():
     # load data
     print("Loading data...")
-    id, prediction = get_input_matrix()
+    X, W = get_input_matrix()
 
 
     for i, k in enumerate(K):
@@ -17,8 +17,8 @@ def main():
         # fit the model
         print(f"Fitting the model for k={k}...")
         
-        model = ALS(i, 10000, 1000, EPOCHS, k, λ, verbose = 1, test_size=0.2)
-        pred = model.fit_transform(id, prediction)
+        model = ALS(i, 10000, 1000, k, verbose = 1)
+        pred = model.fit_transform(X, None, W, epochs=20, test_size=0)
 
         if LOG_MODEL_INFO:
             print("Logging model info...")
@@ -30,9 +30,7 @@ def main():
 
         if KAGGLE:
             print("Submitting to Kaggle...")
-            submit_on_kaggle(name="submission.zip", message="Testing bash pipeline")
+            submit_on_kaggle(name="submission.zip", message=MESSAGE)
             
-    print("Done.")
-
 if __name__ == '__main__':
     main()
