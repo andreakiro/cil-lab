@@ -99,7 +99,6 @@ class BaseModel(ABC):
         """
         Create training and test matrices.
         """
-        np.random.seed(seed=self.random_state)
         if test_size != 0:
             # initialize training and test vectors
             W_train = np.copy(W)
@@ -107,8 +106,9 @@ class BaseModel(ABC):
             X_train = np.copy(X)
             X_test = np.copy(X)
             # get training and test masks
-            W_test[W] = np.random.random(*W[W].shape) > test_size
-            W_train = np.multiply(W, ~W_test)
+            np.random.seed(seed=self.random_state)
+            W_train[W] = np.random.random(*W[W].shape) > test_size
+            W_test = np.multiply(W, ~W_train)
             # mask data values
             X_train[~W_train] = np.nan
             X_test[~W_test] = np.nan
