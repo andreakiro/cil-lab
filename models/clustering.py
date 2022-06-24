@@ -8,6 +8,9 @@ import json
 
 class BCA(BaseModel):
     """
+    BCA model
+    ---------
+    
     Block Completion Algorithm from C. Strohmeier and D. Needell, "Clustering of Nonnegative Data and an Application to Matrix Completion" 
     ICASSP 2020 - 2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), 2020, pp. 8349-8353.
     """

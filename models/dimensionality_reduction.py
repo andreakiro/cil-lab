@@ -3,6 +3,32 @@ from models.base_model import BaseModel
 import json
 
 class SVD(BaseModel):
+    """
+    SVD model
+    ---------
+    
+    Train a dimensionality reduction model using SVD.
+    
+    Parameters
+    ----------
+    model_id : int
+        model identification number
+
+    n_users : int
+        rows of the input matrix
+
+    n_movies : int
+        columns of the input matrix
+
+    k : int
+        number of latent factors to use in matrix dimensionality reduction (rank)
+        
+    verbose : int (optional)
+        verbose level of the mode, 0 for no verbose, 1 for verbose
+
+    random_state : int (optional)
+        random seed for non-deterministic behaviours in the class
+    """
 
     def __init__(self, model_id, n_users, n_movies, k, verbose = 0, random_state=42):
         super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)

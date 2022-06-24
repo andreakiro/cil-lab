@@ -9,7 +9,7 @@ class ALS(BaseModel):
     ALS model
     ---
     Train a matrix factorization model using Alternating Least Squares
-    to predict empty entries in a matrix
+    to predict empty entries in a matrix.
     
     Parameters
     ----------

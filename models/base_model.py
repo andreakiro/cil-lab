@@ -8,6 +8,9 @@ from sklearn.metrics import mean_squared_error
 from sklearn.impute import SimpleImputer
 
 class BaseModel(ABC):
+    """
+    Template base model.
+    """
 
     def __init__(self, model_id, n_users, n_movies, verbose = 0, random_state = 42):
         self.model_id = model_id
