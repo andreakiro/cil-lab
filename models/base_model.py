@@ -5,6 +5,7 @@ import pandas as pd
 from scipy import stats
 import math
 from sklearn.metrics import mean_squared_error
+from sklearn.impute import SimpleImputer
 
 class BaseModel(ABC):
 
@@ -23,7 +24,7 @@ class BaseModel(ABC):
     @abstractmethod
     def fit(self, X, y, **kwargs):
         """
-        Fit the decomposing matrix U and V using ALS optimization algorithm
+        Fit the decomposing matrix U and V using ALS optimization algorithm.
 
         Parameters        
         ----------
@@ -43,7 +44,7 @@ class BaseModel(ABC):
     def predict(self, X, **kwargs):
         """
         Predict ratings for every user and item;
-        fit method must be called before this, otherwise an exception will be raised
+        fit method must be called before this, otherwise an exception will be raised.
 
         Parameters
         ----------
@@ -59,7 +60,7 @@ class BaseModel(ABC):
     @abstractmethod
     def fit_transform(self, X, y, **kwargs):
         """
-        Fit data and return predictions on the same matrix
+        Fit data and return predictions on the same matrix.
 
         Parameters
         ----------
@@ -78,7 +79,7 @@ class BaseModel(ABC):
     @abstractmethod
     def log_model_info(self, path = "./log/", format = "json"):
         """
-        Log model and training information
+        Log model and training information.
 
         Parameters
         ----------
@@ -117,12 +118,14 @@ class BaseModel(ABC):
 
     def normalize(self, X, axis = 0, technique = "zscore"):
         """
-        Normalize the input matrix
+        Normalize the input matrix.
         """
         if technique == "zscore":
             # save columns mean and std to invert z-score
             self.μ = np.array(np.broadcast_to(np.nanmean(X, axis=axis)[:], (X.shape)))
+            self.μ = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=0).fit_transform(self.μ)
             self.σ = np.array(np.broadcast_to(np.nanstd(X, axis=axis)[:], (X.shape)))
+            self.σ = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=1).fit_transform(self.σ)
             # normalize data using z-score
             X = stats.zscore(X, axis=axis, nan_policy='omit')
         else:
@@ -132,7 +135,7 @@ class BaseModel(ABC):
 
     def invert_normalization(self, M, technique = "zscore"):
         """
-        Invert normalization (mostly for prediction results)
+        Invert normalization (mostly for prediction results).
         """
         if technique == "zscore":
             return np.multiply(M, self.σ) + self.μ 
@@ -142,11 +145,9 @@ class BaseModel(ABC):
 
     def impute_missing_values(self, X, strategy="zero"):
         """
-        Impute missing (unobserved) values in the input matrix
+        Impute missing (unobserved) values in the input matrix.
         """
-        assert X is not None
         # impute values using sklearn imputation
-        from sklearn.impute import SimpleImputer
         if strategy == "zero":
             X = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=0).fit_transform(X)
         else:
@@ -157,7 +158,7 @@ class BaseModel(ABC):
     @staticmethod
     def score(y_true, y_pred, y_mask):
         """
-        Compute the Root Mean Squared Error between two numeric vectors
+        Compute the Root Mean Squared Error between two numeric vectors.
 
         Parameters
         ----------

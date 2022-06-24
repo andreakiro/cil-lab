@@ -7,6 +7,8 @@ import multiprocessing
 
 class ALS(BaseModel):
     """
+    ALS model
+    ---
     Train a matrix factorization model using Alternating Least Squares
     to predict empty entries in a matrix
     
@@ -40,6 +42,19 @@ class ALS(BaseModel):
         
     def fit(self, X, y, W, epochs = 10, λ = 0.1, test_size = 0, normalization = 'zscore', n_jobs = -1):
         """
+        Fit the decomposing matrix U and V using ALS optimization algorithm.
+
+        Parameters        
+        ----------
+        X : np.array(N_USERS, N_MOVIES)
+            input matrix
+
+        y : Ignored
+            not used, present for API consistency by convention.
+
+        W : np.array(N_USERS, N_MOVIES)
+            mask matrix for observed entries; True entries in the mask corresponds
+            to observed values, False entries to unobserved values
 
         epochs : int
             number of iterations to train the algorithm
@@ -58,7 +73,6 @@ class ALS(BaseModel):
             number of cores that can be used for parallel optimization;
             set to -1 to use all the available cores in the machine
         """
-        self.fit.__doc__ = BaseModel.fit.__doc__ + self.fit.__doc__ 
 
         self.λ = λ
         self.epochs = epochs
@@ -84,7 +98,8 @@ class ALS(BaseModel):
         for epoch in range(self.epochs):
             self._als_step(X_train, W_train, n_jobs=n_jobs)
             predictions_train = self.predict(X_train, invert_norm=False)
-            predictions_test = self.predict(X_test, invert_norm=True)
+            if normalization: predictions_test = self.predict(X_test, invert_norm=True)
+            else: predictions_test = self.predict(X_test, invert_norm=False)
             train_rmse = self.score(X_train, predictions_train, W_train)
             val_rmse = self.score(X_test, predictions_test, W_test)
             if self.verbose:    
@@ -95,8 +110,6 @@ class ALS(BaseModel):
 
     
     def predict(self, X, invert_norm=True):
-        self.predict.__doc__ = BaseModel.predict.__doc__ 
-
         assert self.fitted
         pred = np.dot(self.U, self.V)
         if invert_norm:
@@ -106,6 +119,19 @@ class ALS(BaseModel):
 
     def fit_transform(self, X, y, W, epochs = 10, λ = 0.1, test_size = 0, normalization = 'zscore', n_jobs = -1, invert_norm = True):
         """
+        Fit data and return predictions on the same matrix.
+
+        Parameters
+        ----------
+        X : pd.Dataframe.Column
+            dataframe column containing coordinates of the observed entries in the matrix
+
+        y : int 
+            values of the observed entries in the matrix
+
+        W : np.array(N_USERS, N_MOVIES)
+            mask matrix for observed entries; True entries in the mask corresponds
+            to observed values, False entries to unobserved values
 
         epochs : int
             number of iterations to train the algorithm
@@ -124,7 +150,6 @@ class ALS(BaseModel):
             number of cores that can be used for parallel optimization;
             set to -1 to use all the available cores in the machine
         """
-        self.fit_transform.__doc__ = BaseModel.fit_transform.__doc__ + self.fit_transform.__doc__
 
         self.fit(X, y, W, epochs, λ, test_size, normalization, n_jobs)
         pred = self.predict(X, invert_norm=invert_norm)
@@ -133,7 +158,7 @@ class ALS(BaseModel):
 
     def _als_step(self, X, W, n_jobs):
         """
-        Alternating Least Square optimization step
+        Alternating Least Square optimization step.
         """
         # parallel implementation of the loops
         if n_jobs == -1: num_cores = multiprocessing.cpu_count()
@@ -158,7 +183,6 @@ class ALS(BaseModel):
 
 
     def log_model_info(self, path = "./log/", format = "json"):
-        self.log_model_info.__doc__ = BaseModel.log_model_info.__doc__
 
         model_info = {
             "id" : self.model_id,
@@ -176,3 +200,5 @@ class ALS(BaseModel):
                 json.dump(model_info, fp, indent=4)
         else: 
             raise ValueError(f"{format} is not a valid file format!")
+
+model = ALS()
