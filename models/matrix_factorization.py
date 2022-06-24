@@ -1,6 +1,5 @@
 import numpy as np
 from models.base_model import BaseModel
-from models.svd import SVD
 import json
 from joblib import Parallel, delayed
 import multiprocessing
