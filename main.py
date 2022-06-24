@@ -2,35 +2,35 @@ from calendar import EPOCH
 from utils.utils import get_input_matrix, generate_submission, submit_on_kaggle
 from utils.config import *
 import numpy as np
-from models.als import ALS
-from models.svd import SVD
+from models.matrix_factorization import ALS
+from models.dimensionality_reduction import SVD
+from models.clustering import BCA
 
+N_USERS = 10000
+N_MOVIES = 1000
 
 def main():
     # load data
     print("Loading data...")
     X, W = get_input_matrix()
+    # SVD
+    experiments_on_svd_rank(X, W)
+    # ALS
+    experiments_on_als_rank(X, W)
 
+def experiments_on_svd_rank(X, W):
+    ranks = range(1, 15, 1)
+    for k in ranks:
+        model = SVD(k, N_USERS, N_MOVIES, k, verbose=0)
+        model.fit(X, None, W, 0.2)
+        model.log_model_info()
 
-    for i, k in enumerate(K):
-    
-        # fit the model
-        print(f"Fitting the model for k={k}...")
-        
-        model = ALS(i, 10000, 1000, k, verbose = 1)
-        pred = model.fit_transform(X, None, W, epochs=20, test_size=0)
+def experiments_on_als_rank(X, W):
+    ranks = range(1, 15, 1)
+    for k in ranks:
+        model = ALS(k, N_USERS, N_MOVIES, k, verbose=0)
+        model.fit(X, None, W, epochs=10, test_size=0.2, n_jobs=-1)
+        model.log_model_info()
 
-        if LOG_MODEL_INFO:
-            print("Logging model info...")
-            model.log_model_info()
-
-        if GENERATE_SUBM:
-            print("Generating submission...")
-            generate_submission(pred)
-
-        if KAGGLE:
-            print("Submitting to Kaggle...")
-            submit_on_kaggle(name="submission.zip", message=MESSAGE)
-            
 if __name__ == '__main__':
     main()
