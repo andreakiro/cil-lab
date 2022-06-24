@@ -199,5 +199,4 @@ class ALS(BaseModel):
                 json.dump(model_info, fp, indent=4)
         else: 
             raise ValueError(f"{format} is not a valid file format!")
-
-model = ALS()
+            
