@@ -1,3 +1,4 @@
+import imp
 import numpy as np
 from models.base_model import BaseModel
 import json
@@ -34,9 +35,8 @@ class SVD(BaseModel):
         super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)
         self.k = k  
         self.model_name = "SVD"
-        self.fitted = False
         
-    def fit(self, X, y, W, test_size = 0, normalization = "zscore"):
+    def fit(self, X, y, W, test_size = 0, normalization = "zscore", imputation = 'zeros'):
         """
         Fit the decomposing matrix U and V using ALS optimization algorithm.
 
@@ -57,9 +57,10 @@ class SVD(BaseModel):
             set to 0 when the model has to be used for inference
         
         normalization : str or None
-            technique to be used to normalize the data, None for no normalization
+            strategy to be used to normalize the data, None for no normalization
         """
-
+        self.normalization = normalization
+        self.imputation = imputation
         X_train, W_train, X_test, W_test = self.train_test_split(X, W, test_size)
 
         # the number of singular values must be lower than
@@ -68,19 +69,17 @@ class SVD(BaseModel):
         assert (self.k <= num_singular_values)
 
         # normalize input matrix
-        if normalization:
-            X_train = self.normalize(X_train, technique=normalization)
+        X_train = self.normalize(X_train, strategy=normalization)
 
         # impute missing values
-        X_train = self.impute_missing_values(X_train)
+        X_train = self.impute_missing_values(X_train, strategy=imputation)
 
         # decompose the original matrix
         self.U, Σ, self.Vt = np.linalg.svd(X_train, full_matrices=False)
 
         # keep the top k components
-        self.S = np.zeros((self.n_movies, self.n_movies)) 
+        self.S = np.zeros((num_singular_values, num_singular_values)) 
         self.S[:self.k, :self.k] = np.diag(Σ[:self.k])
-        self.fitted = True
         
         # log training and validation rmse
         train_rmse = self.score(X_train, self.predict(X_train, invert_norm=False), W_train)
@@ -90,14 +89,13 @@ class SVD(BaseModel):
         
 
     def predict(self, X, invert_norm = True):
-        assert self.fitted
         pred = self.U.dot(self.S).dot(self.Vt)
         if invert_norm:
             pred = self.invert_normalization(pred)
         return pred
 
 
-    def fit_transform(self, X, y, W, test_size = 0, normalization = "zscore", invert_norm = True):
+    def fit_transform(self, X, y, W, test_size = 0, normalization = "zscore", imputation = 'zeros', invert_norm = True):
         """
         Fit data and return predictions on the same matrix.
 
@@ -118,16 +116,18 @@ class SVD(BaseModel):
             set to 0 when the model has to be used for inference
         
         normalization : str or None
-            technique to be used to normalize the data, None for no normalization
+            strategy to be used to normalize the data, None for no normalization
         
         invert_norm : bool
             boolean flag to invert the normalization of the predictions
             set to False if the input data were not normalized
         """
 
-        self.fit(X, y, W, test_size, normalization)
+        self.fit(X, y, W, test_size, normalization, imputation)
         return self.predict(X, invert_norm)
-
+    
+    def get_matrices(self):
+        return self.U, self.S, self.Vt
     
     def log_model_info(self, path = "./log/", format = "json"):
 
@@ -136,6 +136,8 @@ class SVD(BaseModel):
             "name" : self.model_name,
             "parameters" : {     
                 "rank" : self.k,
+                "imputation" : self.imputation,
+                "normalization" : self.normalization
             },
             "train_rmse" : self.train_rmse,
             "val_rmse" : self.validation_rmse
