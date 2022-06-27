@@ -15,7 +15,7 @@ from models.base_model import BaseModel
 from models.dimensionality_reduction import SVD
 import json
 from joblib import Parallel, delayed
-import multiprocessing
+import os
 from sklearn.decomposition import NMF as NMF_sl
 import warnings
 from sklearn.exceptions import ConvergenceWarning
@@ -177,7 +177,7 @@ class ALS(BaseModel):
         Alternating Least Square optimization step.
         """
         # parallel implementation of the loops
-        if n_jobs == -1: num_cores = multiprocessing.cpu_count()
+        if n_jobs == -1: num_cores = len(os.sched_getaffinity(0))
         else: num_cores = n_jobs
 
         inputs = enumerate(W)
