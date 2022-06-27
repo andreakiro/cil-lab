@@ -1,7 +1,10 @@
+from pickletools import markobject
+from turtle import color
 from matplotlib import pyplot as plt
 import json
 import os
 import seaborn as sns
+import numpy as np
 
 def main():
      generate_rank_experiments_plot()
@@ -33,11 +36,17 @@ def generate_rank_experiments_plot():
      val_nmf = sorted(val_nmf, key=lambda x: x[0])
      val_svd = sorted(val_svd, key=lambda x: x[0])
      val_als = sorted(val_als, key=lambda x: x[0])
-
+     
      sns.set_style("white")
-     plt.plot([t[0] for t in val_svd], [t[1] for t in val_svd], label = 'SVD')
-     plt.plot([t[0] for t in val_nmf], [t[1] for t in val_nmf], label = 'NMF')
-     plt.plot([t[0] for t in val_als], [t[1] for t in val_als], label = 'ALS')
+     plt.plot([t[0] for t in val_svd], [t[1] for t in val_svd], '-x', label = 'SVD', markevery=[5])
+     plt.plot([t[0] for t in val_nmf], [t[1] for t in val_nmf], '-x', label = 'NMF', markevery=[9])
+     plt.plot([t[0] for t in val_als], [t[1] for t in val_als], '-x', label = 'ALS', markevery=[1])
+     plt.annotate("r=7", (6.4, 1.01))
+     plt.annotate("r=11", (10.4, 1.01))
+     plt.annotate("r=3", (2.4, 0.9845))
+     
+     plt.ylim(top = 1.02, bottom=0.983)
+
      plt.ylabel('Validation RMSE', fontsize = 12)
      plt.xlabel('rank', fontsize = 12)
      plt.legend()
