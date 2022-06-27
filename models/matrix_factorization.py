@@ -9,7 +9,6 @@ Algorithms implemented in this module:
   - Non-negative Matrix Factorization (NMF) algorithm
 """
 
-
 import numpy as np
 from models.base_model import BaseModel
 from models.dimensionality_reduction import SVD
@@ -19,6 +18,7 @@ import os
 from sklearn.decomposition import NMF as NMF_sl
 import warnings
 from sklearn.exceptions import ConvergenceWarning
+from sys import platform
 
 ######################
 ###      ALS       ###
@@ -177,7 +177,8 @@ class ALS(BaseModel):
         Alternating Least Square optimization step.
         """
         # parallel implementation of the loops
-        if n_jobs == -1: num_cores = len(os.sched_getaffinity(0))
+        if n_jobs == -1 and (platform == "linux" or platform == "linux2"): num_cores = len(os.sched_getaffinity(0))
+        elif n_jobs == -1: num_cores = os.cpu_count() 
         else: num_cores = n_jobs
 
         inputs = enumerate(W)
