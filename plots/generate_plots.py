@@ -55,6 +55,8 @@ def generate_rank_experiments_plot():
      plt.annotate("r=3", (2.4, 0.9845))
      plt.annotate("r=2", (1.4, 0.997))
      
+     plt.xticks(list(range(2,19, 2)) + [22, 26, 30])
+
      plt.ylim(top = 1.02, bottom=0.983)
 
      plt.ylabel('Validation RMSE', fontsize = 12)

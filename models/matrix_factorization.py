@@ -22,9 +22,9 @@ from sklearn.exceptions import ConvergenceWarning
 from sys import platform
 import sys, os
 
-######################
-###      ALS       ###
-######################
+  ##############
+ ###  ALS   ###
+##############
 
 class ALS(BaseModel):
     """
@@ -224,9 +224,9 @@ class ALS(BaseModel):
 
 
 
-######################
-###      NMF       ###
-######################
+  ###############
+ ###   NMF   ###
+###############
 
 class NMF(BaseModel):
     """
@@ -367,11 +367,9 @@ class NMF(BaseModel):
             raise ValueError(f"{format} is not a valid file format!")
 
 
-
-
-######################
-###      SVD       ###
-######################
+  ###############
+ ###   SVD   ###
+###############
 
 class SVD(BaseModel):
     """
@@ -408,7 +406,7 @@ class SVD(BaseModel):
         
     def fit(self, X, y, W, test_size = 0, normalization = "zscore", imputation = 'zeros'):
         """
-        Fit the decomposing matrix U and V using ALS optimization algorithm.
+        Fit the decomposing matrix using SVD decomposition.
 
         Parameters        
         ----------
@@ -519,19 +517,19 @@ class SVD(BaseModel):
             raise ValueError(f"{format} is not a valid file format!")
 
 
-
-
-
-######################
-###    FunkSVD     ###
-######################
+  #################
+ ###  FunkSVD  ###
+#################
 
 class FunkSVD(BaseModel):
     """
     FunkSVD model
     ---------
     
-    Train a dimensionality reduction model using FunkSVD.
+    Train a matrix factorization model using FunkSVD.
+    FunkSVD is a powerful algorithm proposed in the context of the Netflix Prize competition.
+    This class is an adapter for the FunkSVD model developed by Geoffrey Bolmier, available 
+    here: https://github.com/gbolmier/funk-svd.
     
     Parameters
     ----------
@@ -545,7 +543,7 @@ class FunkSVD(BaseModel):
         columns of the input matrix
 
     k : int
-        number of latent factors to use in matrix dimensionality reduction (rank)
+        number of latent factors to use in matrix decomposition (rank)
         
     verbose : int (optional)
         verbose level of the mode, 0 for no verbose, 1 for verbose
@@ -561,7 +559,7 @@ class FunkSVD(BaseModel):
         
     def fit(self, X, y, W, test_size = 0, lr = 0.001, reg = .005, n_epochs = 20):
         """
-        Fit the decomposing matrix U and V using ALS optimization algorithm.
+        Fit the Funk SVD model.
 
         Parameters        
         ----------
@@ -648,10 +646,16 @@ class FunkSVD(BaseModel):
 
     # Disable print
     def __block_print(self):
+        """
+        Disable printing to std.out.
+        """
         sys.stdout = open(os.devnull, 'w')
 
     # Restore print
     def __enable_print(self):
+        """
+        Enable printing to std.out.
+        """
         sys.stdout = sys.__stdout__
 
 
@@ -696,7 +700,6 @@ class FunkSVD(BaseModel):
         self.fit(X, y, W, test_size, lr, reg, n_epochs)
         return self.predict(X)
     
-
     
     def log_model_info(self, path = "./log/", format = "json"):
 
