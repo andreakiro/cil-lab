@@ -1,5 +1,5 @@
-from models.svd import SVD
-from models.als import ALS
+from models.dimensionality_reduction import SVD
+from models.matrix_factorization import ALS
 from models.base_model import BaseModel
 import numpy as np 
 import warnings

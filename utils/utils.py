@@ -5,8 +5,17 @@ import os
 
 N_MOVIES = 1000
 N_USERS = 10000
+DATA_PATH = './data/data_train.csv'
 
-def get_input_matrix():
+
+def get_data():
+    data_pd = pd.read_csv(DATA_PATH) 
+    users, movies = [np.squeeze(arr) for arr in np.split(data_pd.Id.str.extract('r(\d+)_c(\d+)').values.astype(int) - 1, 2, axis=-1)]
+    predictions = data_pd.Prediction.values
+    return users, movies, predictions
+
+
+def get_input_matrix(data):
     '''
     Get the input matrix
 
@@ -16,9 +25,7 @@ def get_input_matrix():
         The input array with the true ratings and np.nan where no ratings where given and the 
         mask array containing True where the entries are given and False otherwise.
     '''
-    data_pd = pd.read_csv('./data/data_train.csv') 
-    users, movies = [np.squeeze(arr) for arr in np.split(data_pd.Id.str.extract('r(\d+)_c(\d+)').values.astype(int) - 1, 2, axis=-1)]
-    predictions = data_pd.Prediction.values
+    users, movies, predictions = data
     # create data matrix
     X = np.full((N_USERS, N_MOVIES), np.nan)
     W = np.full((N_USERS, N_MOVIES), False)

@@ -10,15 +10,19 @@ Algorithms implemented in this module:
 """
 
 import numpy as np
+import pandas as pd
 from models.base_model import BaseModel
 from models.dimensionality_reduction import SVD
 import json
 from joblib import Parallel, delayed
 import os
 from sklearn.decomposition import NMF as NMF_sl
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.model_selection import train_test_split
 import warnings
 from sklearn.exceptions import ConvergenceWarning
 from sys import platform
+import myfm
 
 ######################
 ###      ALS       ###
@@ -361,4 +365,172 @@ class NMF(BaseModel):
                 json.dump(model_info, fp, indent=4)
         else: 
             raise ValueError(f"{format} is not a valid file format!")
+            
+
+
+
+######################
+###      BFM       ###
+######################
+
+class BFM(BaseModel):
+    """
+    BFM model
+    ---------
+    
+    Train a dimensionality reduction model using a Bayesian Factorization Machine from the myfm library.
+    
+    Parameters
+    ----------
+    model_id : int
+        model identification number
+
+    n_users : int
+        rows of the input matrix
+
+    n_movies : int
+        columns of the input matrix
+
+    k : int
+        number of latent factors to use in matrix dimensionality reduction (rank)
+        
+    verbose : int (optional)
+        verbose level of the mode, 0 for no verbose, 1 for verbose
+
+    random_state : int (optional)
+        random seed for non-deterministic behaviours in the class
+    """
+
+    def __init__(self, model_id, n_users, n_movies, k, verbose = 0, random_state=42):
+        super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)
+        self.k = k
+        self.model_name = "BFM"
+        
+    def fit(self, X, y, W, data, test_size = 0, iter = 500):
+        """
+        Fit the decomposing matrix U and V using ALS optimization algorithm.
+
+        Parameters        
+        ----------
+        X : np.array(N_USERS, N_MOVIES)
+            input matrix
+
+        y : Ignored
+            not used, present for API consistency by convention.
+
+        W : np.array(N_USERS, N_MOVIES)
+            mask matrix for observed entries; True entries in the mask corresponds
+            to observed values, False entries to unobserved values
+
+        test_size : float [0,1] (optional)
+            percentage of the training data to be used as validation split;
+            set to 0 when the model has to be used for inference
+        
+        normalization : str or None
+            strategy to be used to normalize the data, None for no normalization
+        """
+        self.iter = iter
+
+        # Unpack and concat vectors
+        users, movies, predictions = data
+        ump = np.column_stack((np.array(users), np.array(movies), np.array(predictions)))
+
+        train, test = train_test_split(ump, test_size=test_size, random_state=self.random_state)
+        X_train = train[:, :2]
+        y_train = train[:, 2]
+        X_test = test[:, :2]
+        y_test = test[:, 2]
+
+        # One-Hot Encoding
+        ohe = OneHotEncoder(handle_unknown='ignore')
+        X_train = ohe.fit_transform(X_train)
+        X_test = ohe.transform(X_test)
+
+        self.model = myfm.MyFMRegressor(rank=self.k, random_seed=self.random_state)
+
+        if self.verbose: print("Fitting model...")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=ConvergenceWarning)
+            self.model.fit(X_train, y_train, n_iter=self.iter)
+
+        y_pred = self.predict(X_test)
+        
+        # log only validation rmse, we have no training rmse
+        val_rmse = self.score(y_test, y_pred)
+        if self.verbose: print(f"BFM val rmse: {val_rmse}")
+        self.validation_rmse.append(val_rmse)
+        
+
+    def predict(self, X): 
+        return self.model.predict(X)
+
+
+    def fit_transform(self, X, y, W, data, test_size = 0, iter = 500):
+        """
+        Fit data and return predictions on the same matrix.
+
+        Parameters
+        ----------
+        X : pd.Dataframe.Column
+            dataframe column containing coordinates of the observed entries in the matrix
+
+        y : int 
+            values of the observed entries in the matrix
+
+        W : np.array(N_USERS, N_MOVIES)
+            mask matrix for observed entries; True entries in the mask corresponds
+            to observed values, False entries to unobserved values
+
+        test_size : float [0,1] (optional)
+            percentage of the training data to be used as validation split;
+            set to 0 when the model has to be used for inference
+        
+        normalization : str or None
+            strategy to be used to normalize the data, None for no normalization
+        
+        invert_norm : bool
+            boolean flag to invert the normalization of the predictions
+            set to False if the input data were not normalized
+        """
+
+        #self.fit(X, y, W, data, test_size=test_size, iter=iter)
+        #return self.predict(X)
+        raise NotImplementedError()
+    
+    
+    def log_model_info(self, path = "./log/", format = "json"):
+
+        model_info = {
+            "id" : self.model_id,
+            "name" : self.model_name,
+            "parameters" : {     
+                "rank" : self.k,
+                "iter" : self.iter
+            },
+            "val_rmse" : self.validation_rmse
+        }
+        if format == "json":
+            with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
+                json.dump(model_info, fp, indent=4)
+        else: 
+            raise ValueError(f"{format} is not a valid file format!")
+
+
+    @staticmethod
+    def score(y_true, y_pred):
+        """
+        Compute the Root Mean Squared Error between two numeric vectors.
+        Overridden to use normal vectors without masks.
+
+        Parameters
+        ----------
+        y_true : np.ndarray
+            ground truth array
+            
+        y_pred : np.ndarray
+            predictions array
+
+        """
+        rmse = ((y_true - y_pred) ** 2).mean() ** .5
+        return rmse
             
