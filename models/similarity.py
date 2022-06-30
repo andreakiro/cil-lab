@@ -1,6 +1,7 @@
 import numpy as np
 from models.base_model import BaseModel
 import json
+import itertools
 from joblib import Parallel, delayed
 import os
 from sys import platform
@@ -35,7 +36,7 @@ class SimilarityMethods(BaseModel):
         between users only, if "item", between items only and otherwise use both users
         and items.
 
-    use_std: bool
+    use_std: bool (optional)
         Whether we should take into account the standard deviation for the prediction weighting.
         If set to True, we compute the weights of the neighbors using a z-score.
         
@@ -65,7 +66,7 @@ class SimilarityMethods(BaseModel):
         random seed for non-deterministic behaviours in the class
 
     """
-    def __init__(self, model_id, n_users, n_movies, similarity_measure, weighting, method, use_std,  k=10, signifiance_threshold=10, statistic_to_use="mean", user_weight=0.5, n_jobs=-1, verbose = 0, random_state=42):
+    def __init__(self, model_id, n_users, n_movies, similarity_measure, weighting, method, use_std=False,  k=10, signifiance_threshold=10, statistic_to_use="mean", user_weight=0.5, n_jobs=-1, verbose = 0, random_state=42):
         super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)
         assert similarity_measure == "PCC" or similarity_measure == "cosine" or similarity_measure == "SiGra", "Incorrect similarity_measure, must be either 'PCC', 'cosine' or 'SiGra'"
         assert weighting is None or weighting == "weighting" or weighting == "significance" or weighting == "sigmoid", "Incorrect weighting, must be either None, 'weighting', 'significance' or 'sigmoid'"
@@ -79,7 +80,7 @@ class SimilarityMethods(BaseModel):
 
         if n_jobs == -1 and (platform == "linux" or platform == "linux2"): self.num_cores = len(os.sched_getaffinity(0))
         elif n_jobs == -1: self.num_cores = os.cpu_count() 
-        else: self.num_cores = 1
+        else: self.num_cores = n_jobs
 
         # Only useful for this model
         if weighting == "significance":
@@ -120,8 +121,10 @@ class SimilarityMethods(BaseModel):
         X_train, W_train, X_test, W_test = self.train_test_split(X, W, test_size)
 
         # We used them as neighbors for the prediction, not the test set
-        self.X = X_train
-        self.W = W_train
+        self.X_train = X_train
+        self.W_train = W_train
+        self.X_test = X_test
+        self.W_test = W_test
 
         # normalize input matrix
         if normalization is not None:
@@ -442,7 +445,7 @@ class SimilarityMethods(BaseModel):
                     The confidence based on the similarity of neighbors used to compute it (if neighbors have high
                     similarity, will give high confidence).
         '''
-        assert mask_to_predict.shape == self.X.shape and mask_to_predict.shape == self.W.shape
+        assert mask_to_predict.shape == self.X_train.shape and mask_to_predict.shape == self.W_train.shape
 
         if similarity is None:
             return None, None
@@ -453,8 +456,8 @@ class SimilarityMethods(BaseModel):
         was_transposed=False
         printing_interval=200
         
-        X = self.X.copy()
-        W = self.W.copy()
+        X = self.X_train.copy()
+        W = self.W_train.copy()
 
         if similarity.shape[0] != W.shape[0]: # We were using the items and not the users for the similarity 
             was_transposed=True
@@ -561,3 +564,162 @@ class SimilarityMethods(BaseModel):
 
         final_predictions = users_pred*weight_users + items_pred*weight_items
         return final_predictions
+
+
+class ComprehensiveSimilarityReinforcement(SimilarityMethods):
+    """
+    Class to implement the Comprehensive Similarity Reinforcement (CSR) algorithm, which refine the user similarity using items similarity
+    and vice versa. See paper at https://dl.acm.org/doi/pdf/10.1145/3062179 for more informations. By default, use the same parameters as
+    in the paper (PCC with weighting and all neighbors), but can be changed to use all the different similarities and weighting of the super class.
+    Most parameters are the same as the super class and won't be reexplained here.
+    
+    Parameters
+    ----------
+    alpha: float in range (0,1), (optional)
+        Update parameter. If small, the reinforced matrix will change only slightly at each iteration.
+    
+    epsilon: float, (optional)
+        Threshold used to stop the iterations when the Frobenius norm of the difference between two 
+        iterations is below it for both user and item matrix.
+
+    max_iter: int, (optional)
+        Maximum number of iterations.    
+    """
+    def __init__(self, model_id, n_users, n_movies, similarity_measure="PCC", weighting="weighting", use_std=False,  k=10000, statistic_to_use="mean", user_weight=0.5, n_jobs=-1, verbose = 0, random_state=42, alpha=0.5 , epsilon=0.1, max_iter=10):
+        super().__init__(model_id=model_id, n_users=n_users, n_movies=n_movies, similarity_measure=similarity_measure, weighting=weighting, method="both", use_std=use_std,  k=k, statistic_to_use=statistic_to_use, user_weight=user_weight, n_jobs=n_jobs, verbose=verbose, random_state=random_state)
+        assert alpha >= 0 and alpha <= 1, "Alpha must be between 0 and 1 (both included)."
+        self.alpha = alpha
+        self.epsilon = epsilon
+        self.max_iter = max_iter
+        self.model_name = "CSR"
+
+    
+    def fit(self, X, y, W, test_size = 0, normalization = None):
+        super().fit(X, y, W, test_size, normalization)
+        self.fitted = False
+
+        self.similarity_users, self.similarity_items =  self.__compute_CSR()
+
+        self.fitted = True
+
+        # log training and validation rmse
+        train_rmse = self.score(self.X_train, self.predict(self.W_train, invert_norm=False), self.W_train)
+        val_rmse = self.score(self.X_test, self.predict(self.W_test, invert_norm=True if normalization is not None else False), self.W_test)
+        self.train_rmse.append(train_rmse)
+        self.validation_rmse.append(val_rmse)
+
+    
+    def log_model_info(self, path = "./log/", format = "json"):
+
+        model_info = {
+            "id" : self.model_id,
+            "name" : self.model_name,
+            "parameters" : {
+                "similarity_measure": self.similarity_measure,
+                "weighting": self.weighting,
+                "method": self.method,
+                "with std": self.use_std,
+                "number nearest neighbors" : self.k,
+                "user_weight" : self.user_weight,
+                "alpha" : self.alpha,
+                "epsilon" : self.epsilon,
+                "max_iter": self.max_iter
+            },
+            "train_rmse" : self.train_rmse,
+            "val_rmse" : self.validation_rmse
+        }
+
+        if self.weighting == "significance":
+            model_info["parameters"]["signifiance_threshold"] = self.signifiance_threshold
+        if self.similarity_measure == "PCC":
+            model_info["parameters"]["statistic_to_use"] = self.statistic_to_use
+
+        if format == "json":
+            with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
+                json.dump(model_info, fp, indent=4)
+        else: 
+            raise ValueError(f"{format} is not a valid file format!")
+
+    def __compute_CSR(self):
+        """
+        Implement the Comprehensive Similarity Reinforcement algorithm, which refine the user similarity using items similarity
+        and vice versa. See paper at https://dl.acm.org/doi/pdf/10.1145/3062179 for more informations.
+        
+        Return
+        ----------
+        users_reinforced_similarity: np.array(N_USERS, N_USERS)
+                    The reinforced user similarity matrix
+                    
+        items_reinforced_similarity: np.array(N_MOVIES, N_MOVIES)
+                    The reinforced item similarity matrix
+        """
+        users_reinforced_similarity = self.similarity_users.copy()
+        items_reinforced_similarity = self.similarity_items.copy()
+        
+        X = self.normalize(self.X_train, technique = "min_max")
+        W = self.W_train.copy()
+        
+        for iter_cur in range(self.max_iter):
+            last_users_reinforced_similarity = users_reinforced_similarity.copy()
+            last_items_reinforced_similarity = items_reinforced_similarity.copy()
+            
+            #Update users
+            for user_0 in range(X.shape[0]):
+                rated_items_user0 = np.where(W[user_0, :])[0]
+                if rated_items_user0.shape[0]==0: #Should not happen
+                    break
+
+                for user_1 in range(user_0+1, X.shape[0]):
+                    rated_items_user1 = np.where(W[user_1, :])[0]
+                    if rated_items_user1.shape[0]==0: #Should not happen
+                        break
+                    
+                    indices = np.array(list(itertools.product(rated_items_user0, rated_items_user1))) # All pairs of indices, shape (rated_items_user0*rated_items_user1, 2)
+                    pos_neg_indices_users = indices[last_items_reinforced_similarity[indices[:, 0], indices[:, 1]]!=self.min_similarity_neighbor]
+                    w_users = 1-2*np.abs(X[user_0, pos_neg_indices_users[:,0]]-X[user_1, pos_neg_indices_users[:,1]])
+                    total_w_users = np.sum(np.abs(w_users))
+
+                    if total_w_users != 0:
+                        update_users = np.sum(w_users*last_items_reinforced_similarity[pos_neg_indices_users[:,0], pos_neg_indices_users[:,1]])/total_w_users
+                        new_sim_users = (1-self.alpha)*last_users_reinforced_similarity[user_0, user_1] + self.alpha * update_users
+                        users_reinforced_similarity[user_0, user_1] = new_sim_users
+                        users_reinforced_similarity[user_1, user_0] = new_sim_users
+            
+            if self.verbose:
+                print(f"Done with users of iteration {iter_cur+1}/{self.max_iter}")
+            
+            #Update items
+            for item_0 in range(X.shape[1]):
+                rated_users_item0 = np.where(W[:, item_0])[0]
+                if rated_users_item0.shape[0]==0: #Should not happen
+                    break
+
+                for item_1 in range(item_0+1, X.shape[1]):
+                    rated_users_item1 = np.where(W[:,item_1])[0]
+                    if rated_users_item1.shape[0]==0: #Should not happen
+                        break
+
+                    indices = np.array(list(itertools.product(rated_users_item0, rated_users_item1))) # All pairs of indices, shape (rated_users_item0*rated_users_item1, 2)
+                    pos_neg_indices_items = indices[users_reinforced_similarity[indices[:, 0], indices[:, 1]]!=self.min_similarity_neighbor]
+                    w_items = 1-2*np.abs(X[pos_neg_indices_items[:,0], item_0]-X[pos_neg_indices_items[:,1], item_1])
+                    total_w_items = np.sum(np.abs(w_items))
+
+                    if total_w_items != 0:
+                        update_items = np.sum(w_items*users_reinforced_similarity[pos_neg_indices_items[:,0], pos_neg_indices_items[:,1]])/total_w_items
+                        new_sim = (1-self.alpha)*last_items_reinforced_similarity[item_0, item_1] + self.alpha * update_items
+                        items_reinforced_similarity[item_0, item_1] = new_sim
+                        items_reinforced_similarity[item_1, item_0] = new_sim
+            
+            if self.verbose:
+                print(f"Done with iteration {iter_cur+1}/{self.max_iter}")
+            
+            #Check for stopping condition
+            dU = np.linalg.norm(users_reinforced_similarity-last_users_reinforced_similarity, ord="fro")
+            dI = np.linalg.norm(items_reinforced_similarity-last_items_reinforced_similarity, ord="fro")
+            
+            if dU < self.epsilon and dI < self.epsilon:
+                if self.verbose:
+                    print(f"Early stopping due to convergence (difference between two runs smaller than epsilon = {self.epsilon})")
+                break
+            
+        return users_reinforced_similarity, items_reinforced_similarity    
