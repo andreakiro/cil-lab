@@ -273,8 +273,10 @@ class SimilarityMethods(BaseModel):
             X = X.T
         
         similarity = np.zeros((X.shape[0], X.shape[0]))
+        all_rows_norm = np.linalg.norm(X, axis=1)
+
         for i,user in enumerate(X):
-            similarity[i, :] = (X@user)/(np.linalg.norm(X, axis=1)*np.linalg.norm(user))
+            similarity[i, :] = (X@user)/(all_rows_norm*np.linalg.norm(user))
         
         return similarity
 
@@ -344,7 +346,9 @@ class SimilarityMethods(BaseModel):
         number_ratings = np.sum(W, axis=1)
         
         for i, (uw, ux) in enumerate(zip(W, X)):
-            for j, (vw, vx) in enumerate(zip(W, X)):
+            use_range = list(range(i, W.shape[0]))
+            for e, (vw, vx) in enumerate(zip(W[use_range,:], X[use_range,:])):
+                j = use_range[e]
                 common_ratings = np.logical_and(uw, vw)
                 number_common_ratings = np.sum(common_ratings)
                 if number_common_ratings == 0:
@@ -353,8 +357,10 @@ class SimilarityMethods(BaseModel):
                     ratios_sum = np.sum(np.minimum(ux[common_ratings], vx[common_ratings])/np.maximum(ux[common_ratings], vx[common_ratings]))
                     weight = 1.0/(1+np.exp(-(number_ratings[i] + number_ratings[j])/(2*number_common_ratings))) #Why number_common_ratings in the denominator? Would make more sense to inverse numerator and denominator, but like that in the paper
                     similarity[i, j] = weight*ratios_sum/number_common_ratings
-        
-        return 
+                
+                similarity[j, i] = similarity[i, j]
+    
+        return similarity
         
     def __similarity_weighting(self, similarity, W):
         '''
@@ -393,7 +399,9 @@ class SimilarityMethods(BaseModel):
         number_ratings = np.sum(W, axis=1)
         
         for i, u in enumerate(W):
-            for j, v in enumerate(W):
+            use_range = list(range(i, W.shape[0]))
+            for e, v in enumerate(W[use_range, :]):
+                j = use_range[e]
                 number_common_ratings = np.sum(np.logical_and(u, v))
                 
                 if self.method == "weighting":
@@ -406,7 +414,8 @@ class SimilarityMethods(BaseModel):
                     raise ValueError(f"{self.method} is not a valid method! Should be 'weighting', 'significance' or 'sigmoid'")
 
                 weighted_similarity[i, j] = weight*similarity[i, j]
-        
+                weighted_similarity[j, i] = weighted_similarity[i, j]
+
         return weighted_similarity
 
     def __weighted_average_predict(self, mask_to_predict, similarity):
@@ -485,7 +494,7 @@ class SimilarityMethods(BaseModel):
                     else:  
                         preds[j] = user_mean + np.sum(np.multiply(similarity[i, nearest_neighbors], X[nearest_neighbors, j]-np.nanmean(X[nearest_neighbors, :], axis=1)))/np.sum(similarity[i, nearest_neighbors])
                     
-                    confs[i, j] = np.sum(similarity[i, nearest_neighbors]) if nearest_neighbors.shape[0] != 0 else 0
+                    confs[j] = np.sum(similarity[i, nearest_neighbors]) if nearest_neighbors.shape[0] != 0 else 0
                     
             # If more than one core, doesn't print anything anyway.
             if self.num_cores == 1 and self.verbose and (i==X.shape[0]-1 or (not i%printing_interval and i!=0)):
