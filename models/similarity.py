@@ -72,6 +72,10 @@ class SimilarityMethods(BaseModel):
         assert weighting is None or weighting == "weighting" or weighting == "significance" or weighting == "sigmoid", "Incorrect weighting, must be either None, 'weighting', 'significance' or 'sigmoid'"
         assert method == "user" or method == "item" or method == "both", "Incorrect method, must be either 'user', 'item' or 'both'"
 
+        # SiGra has already some weighting taken into account in its similarity computation
+        if similarity_measure == "SiGra":
+            weighting = None
+
         self.similarity_measure = similarity_measure
         self.weighting = weighting
         self.method = method
@@ -140,23 +144,28 @@ class SimilarityMethods(BaseModel):
                 self.min_similarity_neighbor = 0
                 self.similarity_users = self.__compute_pearson_correlation_coefficient(X_train, user=True)
             elif self.similarity_measure == "cosine":
-                self.min_similarity_neighbor = 0.5
+                self.min_similarity_neighbor = 0.15 # Was chosen by taking almost same number of neighbors as PCC with 0
                 self.similarity_users = self.__compute_cosine_similarity(X_train, user=True)
             elif self.similarity_measure == "SiGra":
-                self.min_similarity_neighbor = 0.5
+                self.min_similarity_neighbor = 0.7 # Was chosen by taking almost same number of neighbors as PCC with 0
                 self.similarity_users = self.__compute_SigRA(X_train, W_train, user=True)
         if self.method == "item" or self.method == "both":
             if self.similarity_measure == "PCC":
                 self.min_similarity_neighbor = 0
                 self.similarity_items = self.__compute_pearson_correlation_coefficient(X_train, user=False)
             elif self.similarity_measure == "cosine":
-                self.min_similarity_neighbor = 0.5
+                self.min_similarity_neighbor = 0.15 # Was chosen by taking almost same number of neighbors as PCC with 0
                 self.similarity_items = self.__compute_cosine_similarity(X_train, user=False)
             elif self.similarity_measure == "SiGra":
-                self.min_similarity_neighbor = 0.5
+                self.min_similarity_neighbor = 0.7 # Was chosen by taking almost same number of neighbors as PCC with 0
                 self.similarity_items = self.__compute_SigRA(X_train, W_train, user=False)
         
         if self.weighting is not None:
+            if self.weighting == "weighting":
+                self.min_similarity_neighbor = 0.01 # Was chosen by taking almost same number of neighbors as PCC with 0
+            else:
+                self.min_similarity_neighbor = 0.1 # Was chosen by taking almost same number of neighbors as PCC with 0
+
             self.similarity_users =  self.__similarity_weighting(self.similarity_users, W_train)
             self.similarity_items =  self.__similarity_weighting(self.similarity_items, W_train)
 
