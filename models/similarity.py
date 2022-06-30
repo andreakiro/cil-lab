@@ -1,6 +1,9 @@
 import numpy as np
 from models.base_model import BaseModel
 import json
+from joblib import Parallel, delayed
+import os
+from sys import platform
 
 class SimilarityMethods(BaseModel):
     """
@@ -33,8 +36,8 @@ class SimilarityMethods(BaseModel):
         and items.
 
     use_std: bool
-        Whether we should take into account the standard deviation for the prediction weighting. If set to True, we compute the weights of the 
-        neighbors using a z-score.
+        Whether we should take into account the standard deviation for the prediction weighting.
+        If set to True, we compute the weights of the neighbors using a z-score.
         
     k: int (optional)
         number of nearest neighbors used for the prediction.
@@ -48,15 +51,21 @@ class SimilarityMethods(BaseModel):
         Only used if similarity_measure is PCC. The method use to center the data points.
     
     user_weight: int, in interval [0,1] (optional):
-        Only used if method is "both": if close to 1, put more weight to the users prediction, if close to 0, put more weight to the items prediction.
+        Only used if method is "both": if close to 1, put more weight to the users prediction, if close 
+        to 0, put more weight to the items prediction.
     
+    n_jobs: int (optional)
+        number of cores that can be used for parallel optimization during fitting and prediction.
+        set to -1 to use all the available cores in the machine
+
     verbose : int (optional)
         verbose level of the mode, 0 for no verbose, 1 for verbose
 
     random_state : int (optional)
         random seed for non-deterministic behaviours in the class
+
     """
-    def __init__(self, model_id, n_users, n_movies, similarity_measure, weighting, method, use_std,  k=10, signifiance_threshold=10, statistic_to_use="mean", user_weight=0.5, verbose = 0, random_state=42):
+    def __init__(self, model_id, n_users, n_movies, similarity_measure, weighting, method, use_std,  k=10, signifiance_threshold=10, statistic_to_use="mean", user_weight=0.5, n_jobs=-1, verbose = 0, random_state=42):
         super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)
         assert similarity_measure == "PCC" or similarity_measure == "cosine" or similarity_measure == "SiGra", "Incorrect similarity_measure, must be either 'PCC', 'cosine' or 'SiGra'"
         assert weighting is None or weighting == "weighting" or weighting == "significance" or weighting == "sigmoid", "Incorrect weighting, must be either None, 'weighting', 'significance' or 'sigmoid'"
@@ -67,6 +76,10 @@ class SimilarityMethods(BaseModel):
         self.method = method
         self.use_std = use_std
         self.k = k
+
+        if n_jobs == -1 and (platform == "linux" or platform == "linux2"): self.num_cores = len(os.sched_getaffinity(0))
+        elif n_jobs == -1: self.num_cores = os.cpu_count() 
+        else: self.num_cores = 1
 
         # Only useful for this model
         if weighting == "significance":
@@ -155,7 +168,7 @@ class SimilarityMethods(BaseModel):
 
     def predict(self, X, invert_norm = True):
         """
-        We pass the mask containing the spots we want our model to predict as X.
+        We pass the mask containing the spots that we want our model to predict as X
         """
         assert self.fitted
 
@@ -404,12 +417,9 @@ class SimilarityMethods(BaseModel):
         
         
         Parameters
-        ----------
-        X : np.array(N_USERS, N_MOVIES)
-            The matrix with ratings.
-        
-        W : np.array(N_USERS, N_MOVIES):
-            The mask containing 1 for rated items and 0 for unrated items.
+        ----------        
+        mask_to_predict : np.array(N_USERS, N_MOVIES):
+            The mask containing 1 for the values we want to predict.
         
         similarity : np.array(N_USERS, N_USERS) or np.array(N_MOVIES, N_MOVIES) or None
                     The matrix with similarity between users or movies
@@ -442,12 +452,11 @@ class SimilarityMethods(BaseModel):
             W=W.T   
             X=X.T
             printing_interval=30
-        
-        predictions = X.copy()
-        confidence = np.ones_like(predictions)
 
-        for i in range(mask_to_predict.shape[0]):
-            
+        def parrallel_weigthed_prediction(i):  
+            preds = X[i, :].copy()
+            confs = np.ones_like(preds) 
+
             user_mean = np.nanmean(X[i, :]) # Might raise a warning if row full of Nan. Is handled the following line
             user_mean = np.nan_to_num(user_mean, nan=(MAX_POSSIBLE_RATING+MIN_POSSIBLE_RATING)/2) # Replace Nan by mean value if a row was full of Nan
 
@@ -472,17 +481,23 @@ class SimilarityMethods(BaseModel):
                         neighbors_stds = np.sqrt(np.nansum((X[nearest_neighbors, :]-neighbors_means.reshape(-1,1))**2, axis=1)/(neighbors_number_item_rated-1))
                         neighbors_stds[neighbors_number_item_rated<=1] = 1 #Set std to 1 if it was the only rating
 
-                        predictions[i, j] = user_mean + user_std * np.sum(np.multiply(similarity[i, nearest_neighbors], (X[nearest_neighbors, j]-np.nanmean(X[nearest_neighbors, :], axis=1))/neighbors_stds))/np.sum(similarity[i, nearest_neighbors])
+                        preds[j] = user_mean + user_std * np.sum(np.multiply(similarity[i, nearest_neighbors], (X[nearest_neighbors, j]-np.nanmean(X[nearest_neighbors, :], axis=1))/neighbors_stds))/np.sum(similarity[i, nearest_neighbors])
                     else:  
-                        predictions[i, j] = user_mean + np.sum(np.multiply(similarity[i, nearest_neighbors], X[nearest_neighbors, j]-np.nanmean(X[nearest_neighbors, :], axis=1)))/np.sum(similarity[i, nearest_neighbors])
+                        preds[j] = user_mean + np.sum(np.multiply(similarity[i, nearest_neighbors], X[nearest_neighbors, j]-np.nanmean(X[nearest_neighbors, :], axis=1)))/np.sum(similarity[i, nearest_neighbors])
                     
-                    confidence[i, j] = np.sum(similarity[i, nearest_neighbors]) if nearest_neighbors.shape[0] != 0 else 0
+                    confs[i, j] = np.sum(similarity[i, nearest_neighbors]) if nearest_neighbors.shape[0] != 0 else 0
                     
-                    
-            if self.verbose and (i==X.shape[0]-1 or (not i%printing_interval and i!=0)):
+            # If more than one core, doesn't print anything anyway.
+            if self.num_cores == 1 and self.verbose and (i==X.shape[0]-1 or (not i%printing_interval and i!=0)):
                 similarity_type = "user" if not was_transposed else "item"
                 print(f"Done with {similarity_type} {i}/{X.shape[0]}")
+            
+            return (preds, confs)
         
+        r = Parallel(n_jobs=self.num_cores)(delayed(parrallel_weigthed_prediction)(i) for i in range(X.shape[0]))
+        predictions, confidence  = zip(*r)
+        predictions = np.array(predictions)
+        confidence = np.array(confidence)
         predictions = np.clip(predictions, MIN_POSSIBLE_RATING, MAX_POSSIBLE_RATING) # Might exceed it, so we clip to correct range
         
         if was_transposed:
