@@ -682,13 +682,13 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
             last_items_reinforced_similarity = items_reinforced_similarity.copy()
             
             #Update users
-            users_reinforced_similarity = self.__update(X, W, users_reinforced_similarity, items_reinforced_similarity, axis=0)
+            users_reinforced_similarity = self.__update(X, W, users_reinforced_similarity, items_reinforced_similarity)
             
             if self.verbose:
                 print(f"Done with users of iteration {iter_cur+1}/{self.max_iter}")
             
             #Update items
-            items_reinforced_similarity = self.__update(X, W, items_reinforced_similarity, users_reinforced_similarity, axis=1)
+            items_reinforced_similarity = self.__update(X, W, items_reinforced_similarity, users_reinforced_similarity)
             
             if self.verbose:
                 print(f"Done with iteration {iter_cur+1}/{self.max_iter}")
@@ -704,15 +704,15 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
             
         return users_reinforced_similarity, items_reinforced_similarity 
 
-    def __update(self, X, W, matrix_to_be_updated, other_matrix, axis=0):
+    def __update(self, X, W, matrix_to_be_updated, other_matrix):
 
         matrix_to_update = matrix_to_be_updated.copy()
 
-        # The naming is based on axis = 0 (i.e. we want to update the users). If axis = 1, then naming of the variable should be equivalent with items and users changed.
-        for user_0 in range(X.shape[axis]):
+        # The naming is based on the user to be updated. If the item similarity matrix is passed as matrix_to_update, then the naming of the variable should be equivalent with items and users changed.
+        for user_0 in range(matrix_to_be_updated.shape[0]):
                 all_rated_items_user0 = np.where(W[user_0, :])[0]
                 if all_rated_items_user0.shape[0]!=0: #If == 0, we just don't update it
-                    for user_1 in range(user_0+1, X.shape[axis]):
+                    for user_1 in range(user_0+1, matrix_to_be_updated.shape[0]):
                         all_rated_items_user1 = np.where(W[user_1, :])[0]
                         if all_rated_items_user1.shape[0]!=0: #If == 0, we just don't update it
                             
