@@ -682,60 +682,13 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
             last_items_reinforced_similarity = items_reinforced_similarity.copy()
             
             #Update users
-            for user_0 in range(X.shape[0]):
-                all_rated_items_user0 = np.where(W[user_0, :])[0]
-                if all_rated_items_user0.shape[0]!=0: #If == 0, we just don't update it
-                    for user_1 in range(user_0+1, X.shape[0]):
-                        all_rated_items_user1 = np.where(W[user_1, :])[0]
-                        if all_rated_items_user1.shape[0]!=0: #If == 0, we just don't update it
-                            # Sample items randomly if self.sample_size is not None. Otherwise keep all the items
-                            if self.sample_size is not None:
-                                chosen_items_user0 = np.random.choice(all_rated_items_user0, self.sample_size, False) if all_rated_items_user0.shape[0] > self.sample_size else all_rated_items_user0
-                                chosen_items_user1 = np.random.choice(all_rated_items_user1, self.sample_size, False) if all_rated_items_user1.shape[0] > self.sample_size else all_rated_items_user1
-                            else:
-                                chosen_items_user0 = all_rated_items_user0
-                                chosen_items_user1 = all_rated_items_user1
-                            
-                            indices = np.array(list(itertools.product(chosen_items_user0, chosen_items_user1))) # All pairs of indices, shape (chosen_items_user0*chosen_items_user1, 2)
-                            pos_neg_indices_users = indices[last_items_reinforced_similarity[indices[:, 0], indices[:, 1]]!=self.min_similarity_neighbor]
-                            w_users = 1-2*np.abs(X[user_0, pos_neg_indices_users[:,0]]-X[user_1, pos_neg_indices_users[:,1]])
-                            total_w_users = np.sum(np.abs(w_users))
-
-                            if total_w_users != 0:
-                                update_users = np.sum(w_users*last_items_reinforced_similarity[pos_neg_indices_users[:,0], pos_neg_indices_users[:,1]])/total_w_users
-                                new_sim_users = (1-self.alpha)*last_users_reinforced_similarity[user_0, user_1] + self.alpha * update_users
-                                users_reinforced_similarity[user_0, user_1] = new_sim_users
-                                users_reinforced_similarity[user_1, user_0] = new_sim_users
+            users_reinforced_similarity = self.__update(X, W, users_reinforced_similarity, items_reinforced_similarity, axis=0)
             
             if self.verbose:
                 print(f"Done with users of iteration {iter_cur+1}/{self.max_iter}")
             
             #Update items
-            for item_0 in range(X.shape[1]):
-                all_rated_users_item0 = np.where(W[:, item_0])[0]
-                if all_rated_users_item0.shape[0]!=0: #If == 0, we just don't update it
-                    for item_1 in range(item_0+1, X.shape[1]):
-                        all_rated_users_item1 = np.where(W[:,item_1])[0]
-                        if all_rated_users_item1.shape[0]!=0: #If == 0, we just don't update it
-
-                            # Sample users randomly if self.sample_size is not None. Otherwise keep all the users
-                            if self.sample_size is not None:
-                                chosen_users_item0 = np.random.choice(all_rated_users_item0, self.sample_size, False) if all_rated_users_item0.shape[0] > self.sample_size else all_rated_users_item0
-                                chosen_users_item1 = np.random.choice(all_rated_users_item1, self.sample_size, False) if all_rated_users_item1.shape[0] > self.sample_size else all_rated_users_item1
-                            else:
-                                chosen_users_item0 = all_rated_items_user0
-                                chosen_users_item1 = all_rated_items_user1
-
-                            indices = np.array(list(itertools.product(chosen_users_item0, chosen_users_item1))) # All pairs of indices, shape (chosen_users_item0*chosen_users_item1, 2)
-                            pos_neg_indices_items = indices[users_reinforced_similarity[indices[:, 0], indices[:, 1]]!=self.min_similarity_neighbor]
-                            w_items = 1-2*np.abs(X[pos_neg_indices_items[:,0], item_0]-X[pos_neg_indices_items[:,1], item_1])
-                            total_w_items = np.sum(np.abs(w_items))
-
-                            if total_w_items != 0:
-                                update_items = np.sum(w_items*users_reinforced_similarity[pos_neg_indices_items[:,0], pos_neg_indices_items[:,1]])/total_w_items
-                                new_sim = (1-self.alpha)*last_items_reinforced_similarity[item_0, item_1] + self.alpha * update_items
-                                items_reinforced_similarity[item_0, item_1] = new_sim
-                                items_reinforced_similarity[item_1, item_0] = new_sim
+            items_reinforced_similarity = self.__update(X, W, items_reinforced_similarity, users_reinforced_similarity, axis=1)
             
             if self.verbose:
                 print(f"Done with iteration {iter_cur+1}/{self.max_iter}")
@@ -749,4 +702,37 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
                     print(f"Early stopping due to convergence (difference between two runs smaller than epsilon = {self.epsilon})")
                 break
             
-        return users_reinforced_similarity, items_reinforced_similarity    
+        return users_reinforced_similarity, items_reinforced_similarity 
+
+    def __update(self, X, W, matrix_to_be_updated, other_matrix, axis=0):
+
+        matrix_to_update = matrix_to_be_updated.copy()
+
+        # The naming is based on axis = 0 (i.e. we want to update the users). If axis = 1, then naming of the variable should be equivalent with items and users changed.
+        for user_0 in range(X.shape[axis]):
+                all_rated_items_user0 = np.where(W[user_0, :])[0]
+                if all_rated_items_user0.shape[0]!=0: #If == 0, we just don't update it
+                    for user_1 in range(user_0+1, X.shape[axis]):
+                        all_rated_items_user1 = np.where(W[user_1, :])[0]
+                        if all_rated_items_user1.shape[0]!=0: #If == 0, we just don't update it
+                            
+                            # Sample items randomly if self.sample_size is not None. Otherwise keep all the items
+                            if self.sample_size is not None:
+                                chosen_items_user0 = np.random.choice(all_rated_items_user0, self.sample_size, False) if all_rated_items_user0.shape[0] > self.sample_size else all_rated_items_user0
+                                chosen_items_user1 = np.random.choice(all_rated_items_user1, self.sample_size, False) if all_rated_items_user1.shape[0] > self.sample_size else all_rated_items_user1
+                            else:
+                                chosen_items_user0 = all_rated_items_user0
+                                chosen_items_user1 = all_rated_items_user1
+                            
+                            indices = np.array(list(itertools.product(chosen_items_user0, chosen_items_user1))) # All pairs of indices, shape (chosen_items_user0*chosen_items_user1, 2)
+                            pos_neg_indices_users = indices[other_matrix[indices[:, 0], indices[:, 1]]!=self.min_similarity_neighbor]
+                            w_users = 1-2*np.abs(X[user_0, pos_neg_indices_users[:,0]]-X[user_1, pos_neg_indices_users[:,1]])
+                            total_w_users = np.sum(np.abs(w_users))
+
+                            if total_w_users != 0: #If == 0, we just don't update it
+                                update_users = np.sum(w_users*other_matrix[pos_neg_indices_users[:,0], pos_neg_indices_users[:,1]])/total_w_users
+                                new_sim_users = (1-self.alpha)*matrix_to_update[user_0, user_1] + self.alpha * update_users
+                                matrix_to_update[user_0, user_1] = new_sim_users
+                                matrix_to_update[user_1, user_0] = new_sim_users
+        
+        return matrix_to_update
