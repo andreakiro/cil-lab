@@ -98,7 +98,7 @@ class SimilarityMethods(BaseModel):
         self.fitted = False
 
     
-    def fit(self, X, y, W, test_size = 0, normalization = None):
+    def fit(self, X, y, W, test_size = 0, normalization = None, log_rmse=True):
         """
         Fit the similarity between users/items.
 
@@ -120,6 +120,9 @@ class SimilarityMethods(BaseModel):
         
         normalization : str or None
             technique to be used to normalize the data, None for no normalization
+        
+        log_rmse : bool (optional)
+            If set to True, compute the test and validation loss
         """
 
         X_train, W_train, X_test, W_test = self.train_test_split(X, W, test_size)
@@ -172,10 +175,11 @@ class SimilarityMethods(BaseModel):
         self.fitted = True
 
         # log training and validation rmse
-        train_rmse = self.score(X_train, self.predict(W_train, invert_norm=False), W_train)
-        val_rmse = self.score(X_test, self.predict(W_test, invert_norm=True if normalization is not None else False), W_test)
-        self.train_rmse.append(train_rmse)
-        self.validation_rmse.append(val_rmse)
+        if log_rmse:
+            train_rmse = self.score(X_train, self.predict(W_train, invert_norm=False), W_train)
+            val_rmse = self.score(X_test, self.predict(W_test, invert_norm=True if normalization is not None else False), W_test)
+            self.train_rmse.append(train_rmse)
+            self.validation_rmse.append(val_rmse)
         
 
     def predict(self, X, invert_norm = True):
@@ -611,8 +615,8 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
         self.sample_size = sample_size
 
     
-    def fit(self, X, y, W, test_size = 0, normalization = None):
-        super().fit(X, y, W, test_size, normalization)
+    def fit(self, X, y, W, test_size = 0, normalization = None, log_rmse=True):
+        super().fit(X, y, W, test_size, normalization, log_rmse=False) # We don't need to compute the loss for this model
         self.fitted = False
 
         self.similarity_users, self.similarity_items =  self.__compute_CSR()
@@ -620,10 +624,11 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
         self.fitted = True
 
         # log training and validation rmse
-        train_rmse = self.score(self.X_train, self.predict(self.W_train, invert_norm=False), self.W_train)
-        val_rmse = self.score(self.X_test, self.predict(self.W_test, invert_norm=True if normalization is not None else False), self.W_test)
-        self.train_rmse.append(train_rmse)
-        self.validation_rmse.append(val_rmse)
+        if log_rmse:
+            train_rmse = self.score(self.X_train, self.predict(self.W_train, invert_norm=False), self.W_train)
+            val_rmse = self.score(self.X_test, self.predict(self.W_test, invert_norm=True if normalization is not None else False), self.W_test)
+            self.train_rmse.append(train_rmse)
+            self.validation_rmse.append(val_rmse)
 
     
     def log_model_info(self, path = "./log/", format = "json"):
