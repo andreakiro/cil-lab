@@ -27,7 +27,7 @@ class SimilarityMethods(BaseModel):
     similarity_measure : string, either "PCC", "cosine" or "SiGra"
         The method used to compute the similarity.
     
-    weighting : string or None, either "weighting", "significance" or "sigmoid"
+    weighting : string or None, either "normal", "significance" or "sigmoid"
         The method used to weight the similarity, in order to give less weight to
         users having rated only few common items.
 
@@ -69,7 +69,7 @@ class SimilarityMethods(BaseModel):
     def __init__(self, model_id, n_users, n_movies, similarity_measure, weighting, method, use_std=False,  k=10, signifiance_threshold=10, statistic_to_use="mean", user_weight=0.5, n_jobs=-1, verbose = 0, random_state=42):
         super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)
         assert similarity_measure == "PCC" or similarity_measure == "cosine" or similarity_measure == "SiGra", "Incorrect similarity_measure, must be either 'PCC', 'cosine' or 'SiGra'"
-        assert weighting is None or weighting == "weighting" or weighting == "significance" or weighting == "sigmoid", "Incorrect weighting, must be either None, 'weighting', 'significance' or 'sigmoid'"
+        assert weighting is None or weighting == "normal" or weighting == "significance" or weighting == "sigmoid", "Incorrect weighting, must be either None, 'normal', 'significance' or 'sigmoid'"
         assert method == "user" or method == "item" or method == "both", "Incorrect method, must be either 'user', 'item' or 'both'"
 
         # SiGra has already some weighting taken into account in its similarity computation
@@ -92,9 +92,10 @@ class SimilarityMethods(BaseModel):
         if similarity_measure == "PCC":
             self.statistic_to_use = statistic_to_use
         if method == "both":
+            assert user_weight>=0 and user_weight<=1, "User weight must be in range [0,1], both included"
             self.user_weight = user_weight
         
-        self.model_name = method + " " + similarity_measure + " similarity with " + weighting + " weighting"
+        self.model_name = method + " " + similarity_measure + " similarity " + ("with "+ weighting if weighting is not None else "without") + " weighting"
         self.fitted = False
 
     
@@ -164,10 +165,10 @@ class SimilarityMethods(BaseModel):
                 self.similarity_items = self.__compute_SigRA(X_train, W_train, user=False)
         
         if self.weighting is not None:
-            if self.weighting == "weighting":
-                self.min_similarity_neighbor = 0.01 # Was chosen by taking almost same number of neighbors as PCC with 0
+            if self.weighting == "normal":
+                self.min_similarity_neighbor = self.min_similarity_neighbor/15 # Was chosen by taking almost same number of neighbors as PCC with 0
             else:
-                self.min_similarity_neighbor = 0.1 # Was chosen by taking almost same number of neighbors as PCC with 0
+                self.min_similarity_neighbor = self.min_similarity_neighbor/1.5 # Was chosen by taking almost same number of neighbors as PCC with 0
 
             self.similarity_users =  self.__similarity_weighting(self.similarity_users, W_train)
             self.similarity_items =  self.__similarity_weighting(self.similarity_items, W_train)
@@ -256,11 +257,20 @@ class SimilarityMethods(BaseModel):
         if self.method == "both":
             model_info["parameters"]["user_weight"] = self.user_weight
 
-        if format == "json":
-            with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
-                json.dump(model_info, fp, indent=4)
-        else: 
-            raise ValueError(f"{format} is not a valid file format!")
+        print(model_info)
+
+        # if format == "json":
+        #     with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
+        #         json.dump(model_info, fp, indent=4)
+        # else: 
+        #     raise ValueError(f"{format} is not a valid file format!")
+
+    def get_similarity_matrices(self):
+        """
+        Return the similarity matrices
+        """
+        assert self.fitted
+        return self.similarity_users, self.similarity_items 
 
     def __compute_cosine_similarity(self, X, user=True):
         '''
@@ -290,10 +300,13 @@ class SimilarityMethods(BaseModel):
         
         similarity = np.zeros((X.shape[0], X.shape[0]))
         all_rows_norm = np.linalg.norm(X, axis=1)
+        mask_non_zeros_norms = all_rows_norm!=0 #To avoid divisions by 0. 
 
-        for i,user in enumerate(X):
-            similarity[i, :] = (X@user)/(all_rows_norm*np.linalg.norm(user))
-        
+        for i, row in enumerate(X):
+            user_norm = np.linalg.norm(row)
+            if user_norm != 0:
+                similarity[i, mask_non_zeros_norms] = (X[mask_non_zeros_norms, :]@row)/(all_rows_norm[mask_non_zeros_norms]*user_norm)
+
         return similarity
 
     def __compute_pearson_correlation_coefficient(self, X, user=True):
@@ -318,18 +331,20 @@ class SimilarityMethods(BaseModel):
         if not user:
             X = X.T
         
+        centered_X = X.copy()
+        mask_not_full_nan = np.sum(~np.isnan(X), axis=1) != 0 # Check which rows are full of nans
         if self.statistic_to_use == "mean":
-            statistic = np.nanmean(X, axis=1)
+            statistic = np.nanmean(X[mask_not_full_nan,:], axis=1)
         elif self.statistic_to_use == "median":
-            statistic = np.nanmedian(X, axis=1)
+            statistic = np.nanmedian(X[mask_not_full_nan,:], axis=1)
         else:
             raise ValueError(f"{self.statistic_to_use} is not a valid statistic! Should be 'mean' or 'median'")
         
-        centered_X = X-statistic.reshape(-1,1)
+        centered_X[mask_not_full_nan,:] = X[mask_not_full_nan,:]-statistic.reshape(-1,1)
         
         return self.__compute_cosine_similarity(centered_X, user=True) # Always True since we have already taken the transpose in this method
 
-    def __compute_SigRA(X, W, user=True):
+    def __compute_SigRA(self, X, W, user=True):
         '''
         Compute the SiGra (https://ieeexplore.ieee.org/document/8250351) similarity between every pair of users or 
         items. Note that this method already uses weighting and hence should not be followed by the 
@@ -383,8 +398,8 @@ class SimilarityMethods(BaseModel):
         Weight the similarity matrix based on the number of ratings of each entry. Without weighting, users having 
         just few entries are often considered as closer, which this method tries to prevent.
 
-        Weight depending on self.method: String, either 'weighting', 'significance' or 'sigmoid', default 'weighting'
-                        'weighting' weights all entries based on the number of common rated items and number of rated items.
+        Weight depending on self.method: String, either 'normal', 'significance' or 'sigmoid', default 'normal'
+                        'normal' weights all entries based on the number of common rated items and number of rated items.
                         'significance' only reduce importance when number of common rated items is below the threshold.
                         'sigmoid' reduces weight when users have only few common rated items. It keeps most of the similarity
                         measure almost untouched and hence is the softest weighting method.
@@ -420,14 +435,14 @@ class SimilarityMethods(BaseModel):
                 j = use_range[e]
                 number_common_ratings = np.sum(np.logical_and(u, v))
                 
-                if self.method == "weighting":
+                if self.weighting == "normal":
                     weight = 2*number_common_ratings/(number_ratings[i] + number_ratings[j]) if (number_ratings[i] + number_ratings[j]) != 0 else 0
-                elif self.method == "significance":
+                elif self.weighting == "significance":
                     weight = np.minimum(number_common_ratings, self.signifiance_threshold)/self.signifiance_threshold
-                elif self.method == "sigmoid":
+                elif self.weighting == "sigmoid":
                     weight = 1.0/(1+np.exp(-number_common_ratings/2))
                 else:
-                    raise ValueError(f"{self.method} is not a valid method! Should be 'weighting', 'significance' or 'sigmoid'")
+                    raise ValueError(f"{self.weighting} is not a valid method! Should be 'normal', 'significance' or 'sigmoid'")
 
                 weighted_similarity[i, j] = weight*similarity[i, j]
                 weighted_similarity[j, i] = weighted_similarity[i, j]
@@ -481,9 +496,8 @@ class SimilarityMethods(BaseModel):
         def parrallel_weigthed_prediction(i):  
             preds = X[i, :].copy()
             confs = np.ones_like(preds) 
-
-            user_mean = np.nanmean(X[i, :]) # Might raise a warning if row full of Nan. Is handled the following line
-            user_mean = np.nan_to_num(user_mean, nan=(MAX_POSSIBLE_RATING+MIN_POSSIBLE_RATING)/2) # Replace Nan by mean value if a row was full of Nan
+            
+            user_mean = np.nanmean(X[i, :]) if np.sum(~np.isnan(X[i, :])) != 0 else (MAX_POSSIBLE_RATING+MIN_POSSIBLE_RATING)/2 # If a row is full of Nan, use 2.5 as mean
 
             if self.use_std:
                 number_items_rated = np.sum(W[i, :])
@@ -494,12 +508,11 @@ class SimilarityMethods(BaseModel):
                     possible_neighbors = np.where(np.logical_and(W[:, j], similarity[i, :]>self.min_similarity_neighbor))[0]
                     sorted_possible_neighbors = possible_neighbors[np.flip(np.argsort(similarity[i, possible_neighbors]))]
                     nearest_neighbors = sorted_possible_neighbors[:self.k]
-
                     if nearest_neighbors.shape[0] == 0:
-                        predictions[i, j] = user_mean
+                        preds[j] = user_mean
                     elif self.use_std:                                        
                         neighbors_number_item_rated = np.sum(W[nearest_neighbors, :], axis=1)
-                        neighbors_means = np.nanmean(X[nearest_neighbors, :], axis=1) # Might raise a warning if row full of Nan. Is handled the following line
+                        neighbors_means = np.nanmean(X[nearest_neighbors, :], axis=1) # Might raise a warning if row full of Nan, but this would mean that there is probably an error in the similarity computation as it shouldn't be a neighbor.
                         neighbors_means = np.nan_to_num(neighbors_means, nan=(MAX_POSSIBLE_RATING+MIN_POSSIBLE_RATING)/2) # Replace Nan by mean value if a row was full of Nan
                         neighbors_number_item_rated[neighbors_number_item_rated<=1]=2 #To avoid division by 0 problems, should not happen frequently, set std to 1 later
                         
@@ -557,7 +570,6 @@ class SimilarityMethods(BaseModel):
         final_predictions: np.array(N_USERS, N_MOVIES)
                     The Final prediction
         """
-        assert self.user_weight>=0 and self.user_weight<=1
         assert not (users_pred is None and items_pred is None)
 
         if users_pred is None:
@@ -605,7 +617,7 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
         Number of samples used to compute the similarity at each iteration. If set to None, don't sample (original paper), which is more accurate
         but extremely slow.     
     """
-    def __init__(self, model_id, n_users, n_movies, similarity_measure="PCC", weighting="weighting", use_std=False,  k=10000, statistic_to_use="mean", user_weight=0.5, n_jobs=-1, verbose = 0, random_state=42, alpha=0.5 , epsilon=0.1, max_iter=10, sample_size=None):
+    def __init__(self, model_id, n_users, n_movies, similarity_measure="PCC", weighting="normal", use_std=False,  k=10000, statistic_to_use="mean", user_weight=0.5, n_jobs=-1, verbose = 0, random_state=42, alpha=0.5 , epsilon=0.1, max_iter=10, sample_size=None):
         super().__init__(model_id=model_id, n_users=n_users, n_movies=n_movies, similarity_measure=similarity_measure, weighting=weighting, method="both", use_std=use_std,  k=k, statistic_to_use=statistic_to_use, user_weight=user_weight, n_jobs=n_jobs, verbose=verbose, random_state=random_state)
         assert alpha >= 0 and alpha <= 1, "Alpha must be between 0 and 1 (both included)."
         self.alpha = alpha
