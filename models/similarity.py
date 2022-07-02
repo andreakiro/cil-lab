@@ -580,6 +580,9 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
     Class to implement the Comprehensive Similarity Reinforcement (CSR) algorithm, which refine the user similarity using items similarity
     and vice versa. See paper at https://dl.acm.org/doi/pdf/10.1145/3062179 for more informations. By default, use the same parameters as
     in the paper (PCC with weighting and all neighbors), but can be changed to use all the different similarities and weighting of the super class.
+    Note that the original algorithm is extremely slow (runs in O((|I|^2)*(|U|^2)*max_iter))), therefore a modification was added, which consists
+    of only sampling a random set of users or items at each iteration to update the similarity. This reduces the runtime to 
+    O(max_iter*(sample_size^2)*((|I|^2)+(|U|^2)))).
     Most parameters are the same as the super class and won't be reexplained here.
     
     Parameters
@@ -592,15 +595,20 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
         iterations is below it for both user and item matrix.
 
     max_iter: int, (optional)
-        Maximum number of iterations.    
+        Maximum number of iterations. 
+
+    sample_size: int or None, (optional)
+        Number of samples used to compute the similarity at each iteration. If set to None, don't sample (original paper), which is more accurate
+        but extremely slow.     
     """
-    def __init__(self, model_id, n_users, n_movies, similarity_measure="PCC", weighting="weighting", use_std=False,  k=10000, statistic_to_use="mean", user_weight=0.5, n_jobs=-1, verbose = 0, random_state=42, alpha=0.5 , epsilon=0.1, max_iter=10):
+    def __init__(self, model_id, n_users, n_movies, similarity_measure="PCC", weighting="weighting", use_std=False,  k=10000, statistic_to_use="mean", user_weight=0.5, n_jobs=-1, verbose = 0, random_state=42, alpha=0.5 , epsilon=0.1, max_iter=10, sample_size=None):
         super().__init__(model_id=model_id, n_users=n_users, n_movies=n_movies, similarity_measure=similarity_measure, weighting=weighting, method="both", use_std=use_std,  k=k, statistic_to_use=statistic_to_use, user_weight=user_weight, n_jobs=n_jobs, verbose=verbose, random_state=random_state)
         assert alpha >= 0 and alpha <= 1, "Alpha must be between 0 and 1 (both included)."
         self.alpha = alpha
         self.epsilon = epsilon
         self.max_iter = max_iter
         self.model_name = "CSR"
+        self.sample_size = sample_size
 
     
     def fit(self, X, y, W, test_size = 0, normalization = None):
@@ -632,7 +640,8 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
                 "user_weight" : self.user_weight,
                 "alpha" : self.alpha,
                 "epsilon" : self.epsilon,
-                "max_iter": self.max_iter
+                "max_iter": self.max_iter,
+                "sample_size": self.sample_size
             },
             "train_rmse" : self.train_rmse,
             "val_rmse" : self.validation_rmse
@@ -674,16 +683,26 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
             
             #Update users
             for user_0 in range(X.shape[0]):
-                rated_items_user0 = np.where(W[user_0, :])[0]
-                if rated_items_user0.shape[0]==0: #Should not happen
-                    break
+                all_rated_items_user0 = np.where(W[user_0, :])[0]
+                if all_rated_items_user0.shape[0]==0: #Should not happen
+                    continue
 
                 for user_1 in range(user_0+1, X.shape[0]):
-                    rated_items_user1 = np.where(W[user_1, :])[0]
-                    if rated_items_user1.shape[0]==0: #Should not happen
-                        break
+                    all_rated_items_user1 = np.where(W[user_1, :])[0]
+                    if all_rated_items_user1.shape[0]==0: #Should not happen
+                        continue
                     
-                    indices = np.array(list(itertools.product(rated_items_user0, rated_items_user1))) # All pairs of indices, shape (rated_items_user0*rated_items_user1, 2)
+
+
+                    # Sample items randomly if self.sample_size is not None. Otherwise keep all the items
+                    if self.sample_size is not None:
+                        chosen_items_user0 = np.random.choice(all_rated_items_user0, self.sample_size, False) if all_rated_items_user0.shape[0] > self.sample_size else all_rated_items_user0
+                        chosen_items_user1 = np.random.choice(all_rated_items_user1, self.sample_size, False) if all_rated_items_user1.shape[0] > self.sample_size else all_rated_items_user1
+                    else:
+                        chosen_items_user0 = all_rated_items_user0
+                        chosen_items_user1 = all_rated_items_user1
+                    
+                    indices = np.array(list(itertools.product(chosen_items_user0, chosen_items_user1))) # All pairs of indices, shape (chosen_items_user0*chosen_items_user1, 2)
                     pos_neg_indices_users = indices[last_items_reinforced_similarity[indices[:, 0], indices[:, 1]]!=self.min_similarity_neighbor]
                     w_users = 1-2*np.abs(X[user_0, pos_neg_indices_users[:,0]]-X[user_1, pos_neg_indices_users[:,1]])
                     total_w_users = np.sum(np.abs(w_users))
@@ -699,16 +718,24 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
             
             #Update items
             for item_0 in range(X.shape[1]):
-                rated_users_item0 = np.where(W[:, item_0])[0]
-                if rated_users_item0.shape[0]==0: #Should not happen
-                    break
+                all_rated_users_item0 = np.where(W[:, item_0])[0]
+                if all_rated_users_item0.shape[0]==0: #Should not happen
+                    continue
 
                 for item_1 in range(item_0+1, X.shape[1]):
-                    rated_users_item1 = np.where(W[:,item_1])[0]
-                    if rated_users_item1.shape[0]==0: #Should not happen
-                        break
+                    all_rated_users_item1 = np.where(W[:,item_1])[0]
+                    if all_rated_users_item1.shape[0]==0: #Should not happen
+                        continue
 
-                    indices = np.array(list(itertools.product(rated_users_item0, rated_users_item1))) # All pairs of indices, shape (rated_users_item0*rated_users_item1, 2)
+                    # Sample users randomly if self.sample_size is not None. Otherwise keep all the users
+                    if self.sample_size is not None:
+                        chosen_users_item0 = np.random.choice(all_rated_users_item0, self.sample_size, False) if all_rated_users_item0.shape[0] > self.sample_size else all_rated_users_item0
+                        chosen_users_item1 = np.random.choice(all_rated_users_item1, self.sample_size, False) if all_rated_users_item1.shape[0] > self.sample_size else all_rated_users_item1
+                    else:
+                        chosen_users_item0 = all_rated_items_user0
+                        chosen_users_item1 = all_rated_items_user1
+
+                    indices = np.array(list(itertools.product(chosen_users_item0, chosen_users_item1))) # All pairs of indices, shape (chosen_users_item0*chosen_users_item1, 2)
                     pos_neg_indices_items = indices[users_reinforced_similarity[indices[:, 0], indices[:, 1]]!=self.min_similarity_neighbor]
                     w_items = 1-2*np.abs(X[pos_neg_indices_items[:,0], item_0]-X[pos_neg_indices_items[:,1], item_1])
                     total_w_items = np.sum(np.abs(w_items))
