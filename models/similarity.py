@@ -257,6 +257,9 @@ class SimilarityMethods(BaseModel):
         if self.method == "both":
             model_info["parameters"]["user_weight"] = self.user_weight
 
+        if self.verbose:
+            print(f"model informations: \n\n {model_info}")
+
         if format == "json":
             with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
                 json.dump(model_info, fp, indent=4)
@@ -667,7 +670,10 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
             model_info["parameters"]["signifiance_threshold"] = self.signifiance_threshold
         if self.similarity_measure == "PCC":
             model_info["parameters"]["statistic_to_use"] = self.statistic_to_use
-
+        
+        if self.verbose:
+            print(f"model informations: \n\n {model_info}")
+        
         if format == "json":
             with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
                 json.dump(model_info, fp, indent=4)
