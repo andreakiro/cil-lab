@@ -257,13 +257,11 @@ class SimilarityMethods(BaseModel):
         if self.method == "both":
             model_info["parameters"]["user_weight"] = self.user_weight
 
-        print(model_info)
-
-        # if format == "json":
-        #     with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
-        #         json.dump(model_info, fp, indent=4)
-        # else: 
-        #     raise ValueError(f"{format} is not a valid file format!")
+        if format == "json":
+            with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
+                json.dump(model_info, fp, indent=4)
+        else: 
+            raise ValueError(f"{format} is not a valid file format!")
 
     def get_similarity_matrices(self):
         """
@@ -491,6 +489,7 @@ class SimilarityMethods(BaseModel):
             was_transposed=True
             W=W.T   
             X=X.T
+            mask_to_predict = mask_to_predict.T
             printing_interval=30
 
         def parrallel_weigthed_prediction(i):  

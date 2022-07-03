@@ -46,16 +46,19 @@ def experiments_on_similarity(X, W):
     for method in methods:
         for similarity_measure in similarity_measures:
             for weighting in weightings:
-                if weighting == "significance":
-                    signifiance_threshold = 7 if method == "user" else 70 if method == "item" else 20
-                else:
-                    signifiance_threshold = None
-                
-                for k in numbers_nn:
-                    model = SimilarityMethods(id, N_USERS, N_MOVIES, similarity_measure, weighting, method, k=k, signifiance_threshold=signifiance_threshold)
-                    model.fit(X, None, W, 0.2)
-                    model.log_model_info()
-                    id += 1
+                if not (similarity_measure=="SiGra" and weighting!=None): #If sigra, we don't need to try all the different weighting since it will be set to None
+                    if weighting == "significance":
+                        signifiance_threshold = 7 if method == "user" else 70 if method == "item" else 20
+                    else:
+                        signifiance_threshold = None
+                    
+                    for k in numbers_nn:
+                        print(f"Train model number {id}")
+                        model = SimilarityMethods(id, N_USERS, N_MOVIES, similarity_measure=similarity_measure, weighting=weighting, method=method, k=k, signifiance_threshold=signifiance_threshold)
+                        model.fit(X, None, W, 0.2)
+                        model.log_model_info()
+                        user_similarity, item_similarity = model.get_similarity_matrices()
+                        id += 1
     
 if __name__ == '__main__':
     main()
