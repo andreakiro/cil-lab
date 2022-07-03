@@ -630,6 +630,9 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
 
     
     def fit(self, X, y, W, test_size = 0, normalization = None, log_rmse=True):
+        if self.verbose:
+                print(f"Start computing the similarities before using CSR")
+
         super().fit(X, y, W, test_size, normalization, log_rmse=False) # We don't need to compute the loss for this model
         self.fitted = False
 
@@ -700,6 +703,9 @@ class ComprehensiveSimilarityReinforcement(SimilarityMethods):
         W = self.W_train.copy()
         
         for iter_cur in range(self.max_iter):
+            if self.verbose:
+                print(f"Start CSR iteration {iter_cur+1}/{self.max_iter}")
+
             last_users_reinforced_similarity = users_reinforced_similarity.copy()
             last_items_reinforced_similarity = items_reinforced_similarity.copy()
             
