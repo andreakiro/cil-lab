@@ -1,11 +1,7 @@
 from calendar import EPOCH
-import sys
 
-from sklearn.preprocessing import OneHotEncoder
 from utils.utils import get_data, get_input_matrix, generate_submission, submit_on_kaggle
 from utils.config import *
-import numpy as np
-import pandas as pd
 from models.matrix_factorization import ALS, BFM
 from models.dimensionality_reduction import SVD
 from models.clustering import BCA

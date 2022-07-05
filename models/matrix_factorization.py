@@ -16,7 +16,6 @@ import json
 from joblib import Parallel, delayed
 import os
 from sklearn.decomposition import NMF as NMF_sl
-from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import train_test_split
 import warnings
 from sklearn.exceptions import ConvergenceWarning
