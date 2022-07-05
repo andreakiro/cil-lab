@@ -1,0 +1,14 @@
+{
+    "id": 7,
+    "name": "BFM",
+    "parameters": {
+        "rank": 7,
+        "iter": 500,
+        "ordinal": true,
+        "implicit user info": true,
+        "implicit movie info": true
+    },
+    "val_rmse": [
+        0.9737674163866014
+    ]
+}

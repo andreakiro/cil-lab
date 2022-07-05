@@ -52,7 +52,7 @@ def generate_rank_experiments_plot():
      
      sns.set_style("white")
      
-     plt.plot([t[0] for t in val], [t[1] for t in val], label = 'Validation error')
+     plt.plot([t[0] for t in val_bfm], [t[1] for t in val_bfm], label = 'Validation error')
      plt.ylabel('RMSE', fontsize = 12)
      plt.xlabel('BFM rank', fontsize = 12)
      plt.legend()
@@ -71,7 +71,7 @@ def generate_rank_experiments_plot():
      
      plt.xticks(list(range(2,19, 2)) + [22, 26, 30])
 
-     plt.ylim(top = 1.02, bottom=0.983)
+     plt.ylim(top = 1.02, bottom=0.968)
 
      plt.ylabel('Validation RMSE', fontsize = 12)
      plt.xlabel('rank', fontsize = 12)
