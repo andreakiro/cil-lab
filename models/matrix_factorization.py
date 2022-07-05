@@ -951,3 +951,4 @@ class BFM(BaseModel):
         """
         rmse = ((y_true - y_pred) ** 2).mean() ** .5
         return rmse
+        
