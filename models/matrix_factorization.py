@@ -7,14 +7,15 @@ Matrix completion algorithms based on matrix factorization.
 Algorithms implemented in this module:
   - Alternate Least-Square (ALS) algorithm
   - Non-negative Matrix Factorization (NMF) algorithm
+  - Singular Value Decomposition (SVD) algorithm
 """
 
 import numpy as np
 from models.base_model import BaseModel
-from models.dimensionality_reduction import SVD
 import json
 from joblib import Parallel, delayed
 import os
+import pandas as pd
 from sklearn.decomposition import NMF as NMF_sl
 from sklearn.model_selection import train_test_split
 import warnings
@@ -24,10 +25,11 @@ import myfm
 from myfm import RelationBlock
 from scipy import sparse as sps
 from collections import defaultdict
+import sys, os
 
-######################
-###      ALS       ###
-######################
+  ##############
+ ###  ALS   ###
+##############
 
 class ALS(BaseModel):
     """
@@ -227,9 +229,9 @@ class ALS(BaseModel):
 
 
 
-######################
-###      NMF       ###
-######################
+  ###############
+ ###   NMF   ###
+###############
 
 class NMF(BaseModel):
     """
@@ -347,6 +349,8 @@ class NMF(BaseModel):
         self.fit(X, y, W, test_size, imputation, iter)
         return self.predict(X)
     
+    def get_matrices(self):
+        return self.U, self.V
     
     def log_model_info(self, path = "./log/", format = "json"):
 
@@ -367,19 +371,17 @@ class NMF(BaseModel):
         else: 
             raise ValueError(f"{format} is not a valid file format!")
             
+   
+  ###############
+ ###   SVD   ###
+###############
 
-
-
-######################
-###      BFM       ###
-######################
-
-class BFM(BaseModel):
+class SVD(BaseModel):
     """
-    BFM model
+    SVD model
     ---------
     
-    Train a dimensionality reduction model using a Bayesian Factorization Machine from the myfm library.
+    Train a dimensionality reduction model using SVD.
     
     Parameters
     ----------
@@ -402,18 +404,14 @@ class BFM(BaseModel):
         random seed for non-deterministic behaviours in the class
     """
 
-    def __init__(self, model_id, n_users, n_movies, k, verbose = 0, random_state=42, with_ord=False, with_iu=False, with_ii=False):
+    def __init__(self, model_id, n_users, n_movies, k, verbose = 0, random_state=42):
         super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)
-        self.k = k
-        self.model_name = "BFM"
-        self.with_ord = with_ord
-        self.with_iu = with_iu
-        self.with_ii = with_ii
-
+        self.k = k  
+        self.model_name = "SVD"
         
-    def fit(self, X, y, W, data, test_size = 0, iter = 500):
+    def fit(self, X, y, W, test_size = 0, normalization = "zscore", imputation = 'zeros'):
         """
-        Fit the decomposing matrix U and V using ALS optimization algorithm.
+        Fit the decomposing matrix using SVD decomposition.
 
         Parameters        
         ----------
@@ -427,6 +425,356 @@ class BFM(BaseModel):
             mask matrix for observed entries; True entries in the mask corresponds
             to observed values, False entries to unobserved values
 
+        test_size : float [0,1] (optional)
+            percentage of the training data to be used as validation split;
+            set to 0 when the model has to be used for inference
+        
+        normalization : str or None
+            strategy to be used to normalize the data, None for no normalization
+        """
+        self.normalization = normalization
+        self.imputation = imputation
+        X_train, W_train, X_test, W_test = self.train_test_split(X, W, test_size)
+
+        # the number of singular values must be lower than
+        # the lowest dimension of the matrix
+        num_singular_values = min(self.n_users, self.n_movies)
+        assert (self.k <= num_singular_values)
+
+        # normalize input matrix
+        X_train = self.normalize(X_train, strategy=normalization)
+
+        # impute missing values
+        X_train = self.impute_missing_values(X_train, strategy=imputation)
+
+        # decompose the original matrix
+        self.U, Σ, self.Vt = np.linalg.svd(X_train, full_matrices=False)
+
+        # keep the top k components
+        self.S = np.zeros((num_singular_values, num_singular_values)) 
+        self.S[:self.k, :self.k] = np.diag(Σ[:self.k])
+        
+        # log training and validation rmse
+        train_rmse = self.score(X_train, self.predict(X_train, invert_norm=False), W_train)
+        val_rmse = self.score(X_test, self.predict(X_test, invert_norm=True), W_test)
+        self.train_rmse.append(train_rmse)
+        self.validation_rmse.append(val_rmse)
+        
+
+    def predict(self, X, invert_norm = True):
+        pred = self.U.dot(self.S).dot(self.Vt)
+        if invert_norm:
+            pred = self.invert_normalization(pred)
+        return pred
+
+
+    def fit_transform(self, X, y, W, test_size = 0, normalization = "zscore", imputation = 'zeros', invert_norm = True):
+        """
+        Fit data and return predictions on the same matrix.
+
+        Parameters
+        ----------
+        X : pd.Dataframe.Column
+            dataframe column containing coordinates of the observed entries in the matrix
+
+        y : int 
+            values of the observed entries in the matrix
+
+        W : np.array(N_USERS, N_MOVIES)
+            mask matrix for observed entries; True entries in the mask corresponds
+            to observed values, False entries to unobserved values
+
+        test_size : float [0,1] (optional)
+            percentage of the training data to be used as validation split;
+            set to 0 when the model has to be used for inference
+        
+        normalization : str or None
+            strategy to be used to normalize the data, None for no normalization
+        
+        invert_norm : bool
+            boolean flag to invert the normalization of the predictions
+            set to False if the input data were not normalized
+        """
+
+        self.fit(X, y, W, test_size, normalization, imputation)
+        return self.predict(X, invert_norm)
+    
+    def get_matrices(self):
+        return self.U, self.S, self.Vt
+    
+    def log_model_info(self, path = "./log/", format = "json"):
+
+        model_info = {
+            "id" : self.model_id,
+            "name" : self.model_name,
+            "parameters" : {     
+                "rank" : self.k,
+                "imputation" : self.imputation,
+                "normalization" : self.normalization
+            },
+            "train_rmse" : self.train_rmse,
+            "val_rmse" : self.validation_rmse
+        }
+        if format == "json":
+            with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
+                json.dump(model_info, fp, indent=4)
+        else: 
+            raise ValueError(f"{format} is not a valid file format!")
+
+
+  #################
+ ###  FunkSVD  ###
+#################
+
+class FunkSVD(BaseModel):
+    """
+    FunkSVD model
+    ---------
+    
+    Train a matrix factorization model using FunkSVD.
+    FunkSVD is a powerful algorithm proposed in the context of the Netflix Prize competition.
+    This class is an adapter for the FunkSVD model developed by Geoffrey Bolmier, available 
+    here: https://github.com/gbolmier/funk-svd.
+    
+    Parameters
+    ----------
+    model_id : int
+        model identification number
+
+    n_users : int
+        rows of the input matrix
+
+    n_movies : int
+        columns of the input matrix
+
+    k : int
+        number of latent factors to use in matrix decomposition (rank)
+        
+    verbose : int (optional)
+        verbose level of the mode, 0 for no verbose, 1 for verbose
+
+    random_state : int (optional)
+        random seed for non-deterministic behaviours in the class
+    """
+
+    def __init__(self, model_id, n_users, n_movies, k, verbose = 0, random_state=42):
+        super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)
+        self.k = k  
+        self.model_name = "FSVD"
+        
+    def fit(self, X, y, W, test_size = 0, lr = 0.001, reg = .005, n_epochs = 20):
+        """
+        Fit the Funk SVD model.
+
+        Parameters        
+        ----------
+        X : np.array(N_USERS, N_MOVIES)
+            input matrix
+
+        y : Ignored
+            not used, present for API consistency by convention.
+
+        W : np.array(N_USERS, N_MOVIES)
+            mask matrix for observed entries; True entries in the mask corresponds
+            to observed values, False entries to unobserved values
+
+        test_size : float [0,1] (optional)
+            percentage of the training data to be used as validation split;
+            set to 0 when the model has to be used for inference
+        
+        lr : float, default=.005
+            Learning rate.
+        
+        reg : float, default=.02
+            L2 regularization factor.
+    
+        n_epochs : int, default=20
+            Number of SGD iterations.
+        """
+        
+        data = self.__convert_data(X, W)
+        self.n_epochs = n_epochs
+        self.reg = reg
+        self.lr = lr
+
+        X_train = data.sample(frac=0.8, random_state=self.random_state)
+        X_val = data.drop(X_train.index.tolist())
+
+        if not self.verbose: self.__block_print()
+
+        from funk_svd import SVD as FSVD
+        self.svd = FSVD(lr=lr,
+                  reg=reg,
+                  n_epochs=n_epochs, 
+                  n_factors=self.k, 
+                  early_stopping=True, 
+                  shuffle=False,
+                  min_delta=0.0001,
+                  min_rating=1, 
+                  max_rating=5)
+        
+
+        self.svd.fit(X=X_train, X_val=X_val)
+        self.validation_rmse = self.svd.metrics_['RMSE'].values[:-1].tolist()
+
+        if not self.verbose: self.__enable_print()
+    
+    def __convert_data(self, X, W):
+        """
+        Convert input array to the format accepted as input by gbolmier FunkSVD 
+        implementation (pd.Dataframe).
+
+        Parameters
+        ----------
+        X : np.array(N_USERS, N_MOVIES)
+            input matrix
+
+        W : np.array(N_USERS, N_MOVIES)
+            mask matrix for observed entries; True entries in the mask corresponds
+            to observed values, False entries to unobserved values
+
+        Returns
+        -------
+        data : pd.DataFrame
+               pandas dataframe formatted with three colums as follows
+                - u_id : row id
+                - i_id : col id
+                - rating : value
+        """
+        entries = []
+        for j in range(W.shape[1]):
+            for i in range(W.shape[0]):
+                if W[i][j]:
+                    entries.append([i+1, j+1, X[i][j]])
+        return pd.DataFrame(entries, columns=['u_id', 'i_id', 'rating'])
+        
+
+    # Disable print
+    def __block_print(self):
+        """
+        Disable printing to std.out.
+        """
+        sys.stdout = open(os.devnull, 'w')
+
+    # Restore print
+    def __enable_print(self):
+        """
+        Enable printing to std.out.
+        """
+        sys.stdout = sys.__stdout__
+
+
+    def predict(self, X):
+        data = self.__convert_data(np.zeros((self.n_users, self.n_movies)), np.full((self.n_users, self.n_movies), fill_value=True))
+        pred = self.svd.predict(data)
+        res = np.full((self.n_users, self.n_movies), fill_value=0)
+        for i, row in data.iterrows():
+            res[int(row['u_id'])-1][int(row['i_id'])-1] = pred[i]
+        return res
+
+    def fit_transform(self, X, y, W, test_size = 0, lr = 0.001, reg = .005, n_epochs = 20):
+        """
+        Fit data and return predictions on the same matrix.
+
+        Parameters        
+        ----------
+        X : np.array(N_USERS, N_MOVIES)
+            input matrix
+
+        y : Ignored
+            not used, present for API consistency by convention.
+
+        W : np.array(N_USERS, N_MOVIES)
+            mask matrix for observed entries; True entries in the mask corresponds
+            to observed values, False entries to unobserved values
+
+        test_size : float [0,1] (optional)
+            percentage of the training data to be used as validation split;
+            set to 0 when the model has to be used for inference
+        
+        lr : float, default=.005
+            Learning rate.
+        
+        reg : float, default=.02
+            L2 regularization factor.
+    
+        n_epochs : int, default=20
+            Number of SGD iterations.
+        """
+
+        self.fit(X, y, W, test_size, lr, reg, n_epochs)
+        return self.predict(X)
+    
+    
+    def log_model_info(self, path = "./log/", format = "json"):
+
+        model_info = {
+            "id" : self.model_id,
+            "name" : self.model_name,
+            "parameters" : {     
+                "rank" : self.k,
+                "lr" : self.lr,
+                "reg" : self.reg,
+                "n_epochs" : self.n_epochs
+            },
+            "val_rmse" : self.validation_rmse
+        }
+        if format == "json":
+            with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
+                json.dump(model_info, fp, indent=4)
+        else: 
+            raise ValueError(f"{format} is not a valid file format!")
+
+
+  ###############
+ ###   BFM   ###
+###############
+
+class BFM(BaseModel):
+    """
+    BFM model
+    ---------
+    
+    Train a dimensionality reduction model using a Bayesian Factorization Machine from the myfm library.
+    
+    Parameters
+    ----------
+    model_id : int
+        model identification number
+    n_users : int
+        rows of the input matrix
+    n_movies : int
+        columns of the input matrix
+    k : int
+        number of latent factors to use in matrix dimensionality reduction (rank)
+        
+    verbose : int (optional)
+        verbose level of the mode, 0 for no verbose, 1 for verbose
+    random_state : int (optional)
+        random seed for non-deterministic behaviours in the class
+    """
+
+    def __init__(self, model_id, n_users, n_movies, k, verbose = 0, random_state=42, with_ord=False, with_iu=False, with_ii=False):
+        super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)
+        self.k = k
+        self.model_name = "BFM"
+        self.with_ord = with_ord
+        self.with_iu = with_iu
+        self.with_ii = with_ii
+
+        
+    def fit(self, X, y, W, data, test_size = 0, iter = 500):
+        """
+        Fit the decomposing matrix U and V using ALS optimization algorithm.
+        Parameters        
+        ----------
+        X : np.array(N_USERS, N_MOVIES)
+            input matrix
+        y : Ignored
+            not used, present for API consistency by convention.
+        W : np.array(N_USERS, N_MOVIES)
+            mask matrix for observed entries; True entries in the mask corresponds
+            to observed values, False entries to unobserved values
         test_size : float [0,1] (optional)
             percentage of the training data to be used as validation split;
             set to 0 when the model has to be used for inference
@@ -543,19 +891,15 @@ class BFM(BaseModel):
     def fit_transform(self, X, y, W, data, test_size = 0, iter = 500):
         """
         Fit data and return predictions on the same matrix.
-
         Parameters
         ----------
         X : pd.Dataframe.Column
             dataframe column containing coordinates of the observed entries in the matrix
-
         y : int 
             values of the observed entries in the matrix
-
         W : np.array(N_USERS, N_MOVIES)
             mask matrix for observed entries; True entries in the mask corresponds
             to observed values, False entries to unobserved values
-
         test_size : float [0,1] (optional)
             percentage of the training data to be used as validation split;
             set to 0 when the model has to be used for inference
@@ -597,7 +941,6 @@ class BFM(BaseModel):
         """
         Compute the Root Mean Squared Error between two numeric vectors.
         Overridden to use normal vectors without masks.
-
         Parameters
         ----------
         y_true : np.ndarray
@@ -605,8 +948,6 @@ class BFM(BaseModel):
             
         y_pred : np.ndarray
             predictions array
-
         """
         rmse = ((y_true - y_pred) ** 2).mean() ** .5
         return rmse
-            

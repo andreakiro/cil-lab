@@ -15,7 +15,7 @@ class BCA(BaseModel):
     ICASSP 2020 - 2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), 2020, pp. 8349-8353.
     """
 
-    def __init__(self, model_id, n_users, n_movies, k, n_cluster, verbose = 0,  random_state = 42):
+    def __init__(self, model_id, n_users, n_movies, k, n_cluster, verbose = 0,  random_state = 1):
         super().__init__(model_id = model_id, n_users = n_users, n_movies = n_movies, verbose = verbose, random_state=random_state) 
         self.model_name = "BCA"
         self.k = k
@@ -37,10 +37,13 @@ class BCA(BaseModel):
         X_train, W_train, X_test, W_test = self.train_test_split(X, W, test_size=test_size)
 
         # first basic completion of the matrix using ALS
-        if self.verbose: print("Fitting base SVD model...")
-        model = ALS(1, 10000, 1000, k=self.k)
-        basic = model.fit_transform(X_train, None, W_train, test_size=0)
-        basic = np.clip(basic, 1, 5)
+        if self.verbose: print("Fitting base ALS model...")
+
+        als = ALS(0, self.n_users, self.n_movies, 3, )
+        basic = als.fit_transform(X_train, None, W_train, epochs=20)
+
+        svd = SVD(1, 10000, 1000, k=7)
+        basic = svd.fit_transform(X_train, None, W_train, test_size=0)
 
         # apply NMF clustering
         if self.verbose: print("NMF clustering...")
@@ -52,24 +55,25 @@ class BCA(BaseModel):
         # create block for each cluster and complete the block with ALS
         if self.verbose: print("Fitting blocks with ALS...")
         for c in range(self.n_cluster):
-            print(f"    Fitting cluster {c}...")
-            block = X_train[clusters == c, :]
+            print(f" >>> Fitting cluster {c}...")
+            block = np.copy(X_train[clusters == c, :])
             block_W = W[clusters == c, :]
-            model = ALS(1, 10000, 1000, k=self.k)
+            model = ALS(1, block.shape[0], block.shape[1], k=self.k)
             with warnings.catch_warnings(): 
                 warnings.simplefilter("ignore", category=RuntimeWarning)
-                self.prediction[clusters == c, :] = model.fit_transform(block, None, block_W, epochs=5, test_size=0)
+                self.prediction[clusters == c, :] = model.fit_transform(block, None, block_W, epochs=10, test_size=0)
         
         train_rmse = self.score(X_train, self.prediction, W_train)
         val_rmse = self.score(X_test, self.prediction, W_test)
-        if self.verbose:    
-            print(f"BCA model train_rmse: {train_rmse}, val_rmse: {val_rmse}")
+
+        if self.verbose: print(f"BCA model train_rmse: {train_rmse}, val_rmse: {val_rmse}")
+
         # log rmse
         self.train_rmse.append(train_rmse)
         self.validation_rmse.append(val_rmse)
 
         
-    def predict(self):
+    def predict(self, X):
         return self.prediction
     
     def __nmf_clustering(self, X):
@@ -77,11 +81,11 @@ class BCA(BaseModel):
         """
         # perform NMF with k hidden features to write X_train = W @ H
         from sklearn.decomposition import NMF
-        model = NMF(n_components=self.k, init='nndsvd', max_iter=512, random_state=self.random_state)
+        model = NMF(n_components=24, init='nndsvd', max_iter=1024, random_state=self.random_state)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=ConvergenceWarning)
             W = model.fit_transform(X)
-        H = model.components_
+            H = model.components_
         # apply k-means to rows of W
         from sklearn.cluster import KMeans
         kmeans = KMeans(n_clusters=self.n_cluster).fit(W)
@@ -89,8 +93,9 @@ class BCA(BaseModel):
         return kmeans.labels_
 
 
-    def fit_transform(self):
-        raise NotImplementedError()
+    def fit_transform(self, X, y, W, test_size = 0 ):
+        self.fit(X, y, W, test_size)
+        return self.predict(X)
 
     def log_model_info(self, path = "./log/", format = "json"):
         model_info = {
