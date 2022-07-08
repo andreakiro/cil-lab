@@ -42,6 +42,7 @@ class AutoEncoder(nn.Module):
         self._last = len(layer_sizes) - 2
         self._nl_type = nl_type
         self.is_constrained = is_constrained
+        self.layer_sizes = layer_sizes
         
         # W (mask) encoding
         self.encode_w = nn.ParameterList([nn.Parameter(torch.rand(layer_sizes[i + 1], layer_sizes[i])) for i in range(len(layer_sizes) - 1)])
@@ -56,35 +57,12 @@ class AutoEncoder(nn.Module):
         if not is_constrained:
             self.decode_w = nn.ParameterList([nn.Parameter(torch.rand(reversed_enc_layers[i + 1], reversed_enc_layers[i])) for i in range(len(reversed_enc_layers) - 1)])
             for ind, w in enumerate(self.decode_w):
-                weight_init.xavier_uniform(w)
+                weight_init.xavier_uniform_(w)
 
         # B (bias) decoding
         self.decode_b = nn.ParameterList([nn.Parameter(torch.zeros(reversed_enc_layers[i + 1])) for i in range(len(reversed_enc_layers) - 1)])
 
-        print("******************************")
-        print("******************************")
-
-        print(layer_sizes)
-        print("Dropout drop probability: {}".format(self._dp_drop_prob))
-
-        print("Encoder pass:")
-        for ind, w in enumerate(self.encode_w):
-            print(w.data.size())
-            print(self.encode_b[ind].size())
-
-        print("Decoder pass:")
-        if self.is_constrained:
-            print('Decoder is constrained')
-            for ind, w in enumerate(list(reversed(self.encode_w))):
-                print(w.transpose(0, 1).size())
-                print(self.decode_b[ind].size())
-        else:
-            for ind, w in enumerate(self.decode_w):
-                print(w.data.size())
-                print(self.decode_b[ind].size())
-
-        print("******************************")
-        print("******************************")
+        #self.print_architecture()
 
     def encode(self, x):
         # apply encoding layers to x
@@ -115,6 +93,32 @@ class AutoEncoder(nn.Module):
 
     def forward(self, x):
         return self.decode(self.encode(x))
+
+    def print_architecture(self):
+        print("******************************")
+        print("******************************")
+
+        print(self.layer_sizes)
+        print("Dropout drop probability: {}".format(self._dp_drop_prob))
+
+        print("Encoder pass:")
+        for ind, w in enumerate(self.encode_w):
+            print(w.data.size())
+            print(self.encode_b[ind].size())
+
+        print("Decoder pass:")
+        if self.is_constrained:
+            print('Decoder is constrained')
+            for ind, w in enumerate(list(reversed(self.encode_w))):
+                print(w.transpose(0, 1).size())
+                print(self.decode_b[ind].size())
+        else:
+            for ind, w in enumerate(self.decode_w):
+                print(w.data.size())
+                print(self.decode_b[ind].size())
+
+        print("******************************")
+        print("******************************")
 
 #######################################
 ############### HELPERS ###############

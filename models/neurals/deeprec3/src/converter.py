@@ -5,7 +5,6 @@ import sys
 import os
 from math import floor
 
-
 def print_stats(data):
     total_ratings = 0
     print("STATS")
