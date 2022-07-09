@@ -177,10 +177,7 @@ def train(args, config, params, cuda):
   if args.noise_prob > 0.0:
     dp = nn.Dropout(p=args.noise_prob)
 
-  # variables
-  t_loss = 0.0
-  t_loss_denom = 0.0
-  global_step = 0
+  # list of epoch num when we'll save model
   chkpts = [args.epochs/args.num_checkpoints * x for x in range(1, args.num_checkpoints)]
 
   # starts training the model
@@ -192,7 +189,7 @@ def train(args, config, params, cuda):
     total_epoch_loss = 0.0
     denom = 0.0
 
-    for i, mb in enumerate(data_layer.iterate_one_epoch()):
+    for _, mb in enumerate(data_layer.iterate_one_epoch()):
       inputs = Variable(mb.cuda().to_dense() if cuda else mb.to_dense())
       optimizer.zero_grad()
       outputs = autoenc(inputs)
@@ -200,17 +197,6 @@ def train(args, config, params, cuda):
       loss = loss / num_ratings
       loss.backward()
       optimizer.step()
-      global_step += 1
-      t_loss += loss.item()
-      t_loss_denom += 1
-
-      if i % args.summary_frequency == 0:
-        rmse = sqrt(t_loss / t_loss_denom)
-        #print('t_loss_denom: ', t_loss_denom)
-        #print('[%d, %5d] RMSE: %.7f' % (epoch, i, rmse))
-        t_loss = 0
-        t_loss_denom = 0.0
-
       total_epoch_loss += loss.item()
       denom += 1
 
