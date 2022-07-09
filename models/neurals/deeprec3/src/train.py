@@ -120,17 +120,17 @@ def train(args, config, params, cuda):
   # define layers
   layer_sizes = (
     [data_layer.vector_dim]
-    + [int(args.layer1_dim)]
-    + [int(args.layer2_dim)]
+    + [args.layer1_dim]
+    + [args.layer2_dim]
   )
 
-  if int(args.layer3_dim) != 0:
-    layer_sizes = layer_sizes + [int(args.layer3_dim)]
+  if args.layer3_dim != 0:
+    layer_sizes = layer_sizes + [args.layer3_dim]
 
   # initialize model
   autoenc = deeprec.AutoEncoder(
     layer_sizes = layer_sizes,
-    nl_type = args.non_linearity_type,
+    nl_type = args.activation,
     is_constrained = args.constrained,
     dp_drop_prob = args.dropout,
     last_layer_activations = not args.skip_last_layer_nl
@@ -181,12 +181,12 @@ def train(args, config, params, cuda):
   t_loss = 0.0
   t_loss_denom = 0.0
   global_step = 0
-  chkpts = [args.num_epochs/args.num_checkpoints * x for x in range(1, args.num_checkpoints)]
+  chkpts = [args.epochs/args.num_checkpoints * x for x in range(1, args.num_checkpoints)]
 
   # starts training the model
-  print('Starting training for {} epochs'.format(args.num_epochs))
-  for epoch in range(int(args.num_epochs)):
-    #print('Doing epoch {} of {}'.format(epoch, args.num_epochs))
+  print('Starting training for {} epochs'.format(args.epochs))
+  for epoch in range(int(args.epochs)):
+    #print('Doing epoch {} of {}'.format(epoch, args.epochs))
     e_start_time = time.time()
     autoenc.train()
     total_epoch_loss = 0.0

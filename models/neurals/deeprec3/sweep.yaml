@@ -10,7 +10,7 @@ metric:
 parameters:
   # model architecture
   major:
-    value: major
+    value: users
   activation:
     values: [
       selu,
@@ -51,11 +51,11 @@ parameters:
     distribution: uniform
     min: 0.000
     max: 0.001
-  P_dropout:
+  dropout:
     distribution: uniform
     min: 0
     max: 1
-  P_noise:
+  noise_prob:
     value: 0
   dense_refeeding_steps:
     value: 2
