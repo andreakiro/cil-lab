@@ -18,7 +18,8 @@ class UserItemRecDataProvider:
         item_id_map = None
     ):
         self._params = params
-        self._data_dir = self.params["data_dir"]
+        #self._data_dir = self.params["data_dir"]
+        self._data_file = [self.params["data_file"]]
         self._extension = ("" if "extension" not in self.params else self.params["extension"])
         self._i_id = 0 if "itemIdInd" not in self.params else self.params["itemIdInd"]
         self._u_id = 1 if "userIdInd" not in self.params else self.params["userIdInd"]
@@ -41,17 +42,17 @@ class UserItemRecDataProvider:
         minor_map = self._user_id_map if self._major == "items" else self._item_id_map
         self._vector_dim = len(minor_map)
 
-        src_files = [
-            path.join(self._data_dir, f)
-            for f in listdir(self._data_dir)
-            if path.isfile(path.join(self._data_dir, f)) and f.endswith(self._extension)
-        ]
+        # src_files = [
+        #     path.join(self._data_dir, f)
+        #     for f in listdir(self._data_dir)
+        #     if path.isfile(path.join(self._data_dir, f)) and f.endswith(self._extension)
+        # ]
 
         self._batch_size = self.params["batch_size"]
 
         self.data = dict()
 
-        for source_file in src_files:
+        for source_file in self._data_file:
             with open(source_file, "r") as src:
                 for line in src.readlines():
                     parts = line.strip().split(self._delimiter)
@@ -68,15 +69,15 @@ class UserItemRecDataProvider:
         self._user_id_map = dict()
         self._item_id_map = dict()
 
-        src_files = [
-            path.join(self._data_dir, f)
-            for f in listdir(self._data_dir)
-            if path.isfile(path.join(self._data_dir, f)) and f.endswith(self._extension)
-        ]
+        # src_files = [
+        #     path.join(self._data_dir, f)
+        #     for f in listdir(self._data_dir)
+        #     if path.isfile(path.join(self._data_dir, f)) and f.endswith(self._extension)
+        # ]
 
         u_id = 0
         i_id = 0
-        for source_file in src_files:
+        for source_file in self._data_file:
             with open(source_file, "r") as src:
                 for line in src.readlines():
                     parts = line.strip().split(self._delimiter)

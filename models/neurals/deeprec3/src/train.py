@@ -108,7 +108,7 @@ def train(args, config, params, cuda):
   if args.path_to_eval_data != '':
     print('Loading validation data...')
     eval_params = copy.deepcopy(params)
-    eval_params["data_dir"] = args.path_to_eval_data
+    eval_params["data_file"] = args.path_to_eval_data
     eval_data_layer = L.UserItemRecDataProvider(
       params=eval_params,
       user_id_map=data_layer.userIdMap,  # the mappings are provided
@@ -175,14 +175,16 @@ def train(args, config, params, cuda):
     scheduler = MultiStepLR(optimizer, milestones=[24, 36, 48, 66, 72], gamma=0.5)
 
   if args.noise_prob > 0.0:
-    dp = nn.Dropout(p=wandb.config["noise_prob"])
+    dp = nn.Dropout(p=args.noise_prob)
 
   # variables
   t_loss = 0.0
   t_loss_denom = 0.0
   global_step = 0
+  chkpts = [args.num_epochs/args.num_checkpoints * x for x in range(1, args.num_checkpoints)]
 
   # starts training the model
+  print('Starting training for {} epochs'.format(args.num_epochs))
   for epoch in range(int(args.num_epochs)):
     #print('Doing epoch {} of {}'.format(epoch, args.num_epochs))
     e_start_time = time.time()
@@ -229,18 +231,21 @@ def train(args, config, params, cuda):
       scheduler.step()
 
     e_end_time = time.time()
-    wandb.log({'train_RMSE': sqrt(total_epoch_loss / denom)})
+    wandb.log({'train_RMSE': sqrt(total_epoch_loss / denom), 'epoch': epoch})
     print('Epoch {} finished in {:.2f} seconds'.format(epoch, e_end_time - e_start_time))
     print('\tTRAINING RMSE loss: {:.2f}'.format(sqrt(total_epoch_loss / denom)))
 
-    # save checkpoint and evaluate model
-    if epoch % args.save_every == 0 or epoch == args.num_epochs - 1:
-      version = 'epoch_' + str(epoch) + '.model'
-      torch.save(autoenc.state_dict(), Path(model_checkpoints, version))
+    # evaluate model
+    if (epoch + 1) % args.evaluation_frequency == 0:
       if args.path_to_eval_data != '':
         eval_loss = evaluate(autoenc, eval_data_layer, cuda)
         wandb.log({'val_RMSE': eval_loss, 'epoch': epoch})
-        print('\tEVALUATION RMSE loss: {:.2f}'.format(epoch, eval_loss))
+        print('\tEVALUATION RMSE loss: {:.2f}'.format(eval_loss))
+
+    # save checkpoint
+    if epoch in chkpts:
+      version = 'epoch_' + str(epoch) + '.model'
+      torch.save(autoenc.state_dict(), Path(model_checkpoints, version))
 
   # save std model
   print('Saving model to {}'.format(Path(model_output, 'last.model')))

@@ -1,4 +1,5 @@
-"""Transforms the CIL competition dataset into a form usable by the autoencoder model"""
+# Copyright github.com/LucaMalagutti/CIL-ETHZ-2021
+##################################################
 
 import random
 import sys
@@ -13,14 +14,12 @@ def print_stats(data):
     print("Total Ratings: {}".format(total_ratings))
     print("Total User count: {}".format(len(data.keys())))
 
-
 def save_data_to_file(data, filename):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as out:
         for item in data:
             for user, rating in data[item]:
                 out.write("{}\t{}\t{}\n".format(user, item, rating))
-
 
 def convert2CILdictionary(dictionary):
     """
@@ -40,12 +39,11 @@ def convert2CILdictionary(dictionary):
         newdictionary[item] = sorted(newdictionary[item])
     return dict(sorted(newdictionary.items()))
 
-
 def main(args):
     inpt = args[1]
-    out_prefix_train = "data/train90/CIL_data90"
-    out_prefix_valid = "data/valid/CIL_data10"
-    out_prefix_submission = "data/submission/CIL_data"
+    out_prefix_train = "data/training_90"
+    out_prefix_valid = "data/validation_10"
+    out_prefix_submission = "data/submission"
 
     # 0.9 for 90%, 1.0 for 100% train and no validation
     percent = 0.9
@@ -111,30 +109,29 @@ def main(args):
         print("Training Data")
         print_stats(training_data)
         save_data_to_file(
-            convert2CILdictionary(training_data), out_prefix_train + ".train"
+            convert2CILdictionary(training_data), out_prefix_train + ".data" #+ ".train"
         )
         print("Validation Data")
         print_stats(validation_data)
         save_data_to_file(
-            convert2CILdictionary(validation_data), out_prefix_valid + ".valid"
+            convert2CILdictionary(validation_data), out_prefix_valid + ".data" #+ ".valid"
         )
     # Saves non-split train data file
     elif args[2] == "submission" and inpt[-9:] == 'train.csv':
         print("Training Data 100%")
         print_stats(training_data)
         save_data_to_file(
-            convert2CILdictionary(training_data), out_prefix_train + ".train"
+            convert2CILdictionary(training_data), out_prefix_train + ".data" #+ ".train"
         )
     # Saves submission data file
     elif args[2] == "submission":
         print("Submission Data")
         print_stats(training_data)
         save_data_to_file(
-            convert2CILdictionary(training_data), out_prefix_submission + ".submission"
+            convert2CILdictionary(training_data), out_prefix_submission + ".data" #+ ".submission"
         )
     else:
         print("Invalid arguments:", args[2])
-
 
 if __name__ == "__main__":
     main(sys.argv)

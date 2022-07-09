@@ -21,13 +21,14 @@ parser.add_argument('--summary_frequency', type=int, default=100, metavar='N', h
 parser.add_argument('--aug_step', type=int, default=-1, metavar='N', help='do data augmentation every X step')
 parser.add_argument('--constrained', action='store_true', help='constrained autoencoder')
 parser.add_argument('--skip_last_layer_nl', action='store_true', help='if present, decoder\'s last layer will not apply non-linearity function')
-parser.add_argument('--num_epochs', type=int, default=5, metavar='N', help='maximum number of epochs')
-parser.add_argument('--save_every', type=int, default=3, metavar='N', help='save every N number of epochs')
+parser.add_argument('--num_epochs', type=int, default=8, metavar='N', help='maximum number of epochs')
+parser.add_argument('--num_checkpoints', type=int, default=4, metavar='N', help='number of saved model checkpoints (including last)')
+parser.add_argument('--evaluation_frequency', type=int, default=2, metavar='N', help='frequency (epoch-based) of model evaluation')
 parser.add_argument('--optimizer', type=str, default="momentum", metavar='N', help='optimizer kind: adam, momentum, adagrad or rmsprop')
 parser.add_argument('--hidden_layers', type=str, default="1024,512,512,128", metavar='N', help='hidden layer sizes, comma-separated')
 parser.add_argument('--gpu_ids', type=str, default="0", metavar='N', help='comma-separated gpu ids to use for data parallel training')
-parser.add_argument('--path_to_train_data', type=str, default="data/train90", metavar='N', help='Path to training data')
-parser.add_argument('--path_to_eval_data', type=str, default="data/valid", metavar='N', help='Path to evaluation data')
+parser.add_argument('--path_to_train_data', type=str, default="data/training_90.data", metavar='N', help='Path to training data')
+parser.add_argument('--path_to_eval_data', type=str, default="data/validation_10.data", metavar='N', help='Path to evaluation data')
 parser.add_argument('--non_linearity_type', type=str, default="selu", metavar='N', help='type of the non-linearity used in activations')
 parser.add_argument('--logdir', type=str, default="logs", metavar='N', help='where to save model and write logs')
 parser.add_argument("--dense_refeeding_steps", type=int, default=3, metavar="N", help="do data augmentation every X step")
@@ -45,11 +46,13 @@ args = parser.parse_args()
 wandb_config = {
   # model architecture
   'architecture': 'deeprec',
+  'major': 'users',
   'activation': args.non_linearity_type,
   'layer1_dim': args.layer1_dim,
   'layer2_dim': args.layer2_dim,
   'layer3_dim': args.layer3_dim,
   # training hyperparams
+  'epochs': args.num_epochs,
   'optimizer': args.optimizer,
   'learning_rate': args.learning_rate,
   'batch_size': args.batch_size,
@@ -62,7 +65,7 @@ wandb_config = {
 
 nvidia_params = {
   'batch_size': int(args.batch_size),
-  'data_dir': args.path_to_train_data,
+  'data_file': args.path_to_train_data,
   'major': 'users',
   'itemIdInd': 1,
   'userIdInd': 0,
@@ -84,4 +87,4 @@ else:
 #######################################
 
 if __name__ == '__main__':
-    train(args, wandb_config, nvidia_params, cuda)
+  train(args, wandb_config, nvidia_params, cuda)
