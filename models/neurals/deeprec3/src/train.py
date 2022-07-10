@@ -8,6 +8,7 @@ import time
 import glob
 from pathlib import Path
 from math import sqrt
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -220,6 +221,11 @@ def train(args, config, params, cuda):
     wandb.log({'train_RMSE': sqrt(total_epoch_loss / denom), 'epoch': epoch})
     print('Epoch {} finished in {:.2f} seconds'.format(epoch, e_end_time - e_start_time))
     print('\tTRAINING RMSE loss: {:.2f}'.format(sqrt(total_epoch_loss / denom)))
+
+    # early termination
+    if np.isnan(sqrt(total_epoch_loss / denom)):
+      wandb.finish()
+      return
 
     # evaluate model
     if (epoch + 1) % args.evaluation_frequency == 0:
