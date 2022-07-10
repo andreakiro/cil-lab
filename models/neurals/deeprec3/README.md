@@ -42,14 +42,18 @@ $ python main.py --help
 
 ### Create a new Sweep
 ```
-wandb sweep sweep.yaml
+$ wandb sweep $CONFIG
 ```
-
-### Update your Sweep
-* `TODO`
 
 ### Run your own agent
 * Ping to get `<USERNAME/PROJECTNAME/SWEEPID>`
 ```
-wandb agent --count $NUM <USERNAME/PROJECTNAME/SWEEPID>
+$ wandb agent <USERNAME/PROJECTNAME/SWEEPID> --count $NUM
+```
+
+### Run agent on cluster
+```
+$ env2lmod
+$ module load gcc/6.3.0 eth_proxy hdf5/1.10.1
+$ bsub -W 08:00 -n 1 -R "rusage[mem=8192]" wandb agent <USERNAME/PROJECTNAME/SWEEPID> --count $NUM
 ```
