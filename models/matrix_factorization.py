@@ -916,7 +916,7 @@ class BFM(BaseModel):
         raise NotImplementedError()
     
     
-    def log_model_info(self, path = "./log/", format = "json"):
+    def log_model_info(self, path = "./log/", format = "json", options_in_name=False):
 
         model_info = {
             "id" : self.model_id,
@@ -931,7 +931,22 @@ class BFM(BaseModel):
             "val_rmse" : self.validation_rmse
         }
         if format == "json":
-            with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
+            options = ''
+            if options_in_name:
+                if self.with_ord:
+                    options += 'ord'
+                else:
+                    options += '___'
+                if self.with_iu:
+                    options += 'iu'
+                else:
+                    options += '__'
+                if self.with_ii:
+                    options += 'ii'
+                else:
+                    options += '__'
+
+            with open(path + self.model_name + options + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
                 json.dump(model_info, fp, indent=4)
         else: 
             raise ValueError(f"{format} is not a valid file format!")
