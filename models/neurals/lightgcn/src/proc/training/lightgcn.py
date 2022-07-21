@@ -6,6 +6,7 @@
 import os
 import torch
 import wandb
+import numpy as np
 
 from torch import optim
 from pathlib import Path
@@ -29,8 +30,9 @@ def train_lightgcn(args):
     model.train()
 
     for i_epoch in range(args.epochs):
-        training_loss = 0.0
         print(f'Starting epoch {i_epoch + 1} of {args.epochs}')
+        training_loss = 0.0
+        epoch_loss = 0.0
         
         for i_batch, batch in enumerate(train_dataloader):
             optimizer.zero_grad()
@@ -43,13 +45,20 @@ def train_lightgcn(args):
             loss.backward()
             optimizer.step()
             training_loss += loss.item()
+            epoch_loss += loss.item()
             
             if i_batch % config.PRINT_FREQ == (config.PRINT_FREQ - 1):
                 print(f'lightgcn training loss {(training_loss / config.PRINT_FREQ):.5f}')
                 wandb.log({'train_loss': training_loss / config.PRINT_FREQ})
                 training_loss = 0.0
+        
+        epoch_loss /= len(train_dataloader)
+        print(f'lightgcn training loss for epoch {i_epoch} is {epoch_loss:.5f}')
+        if np.isnan(epoch_loss): # early termination
+            wandb.finish()
+            return
 
-        if i_epoch % config.EVAL_FREQ == (config.EVAL_FREQ - 1):
+        if i_epoch % config.EVAL_FREQ == (config.EVAL_FREQ - 1) and args.save:
             evaluate(args, model)
             save_model(args, model, i_epoch)
             model.train() # revert to train mode

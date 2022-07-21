@@ -1,7 +1,6 @@
 # Main file handling light GCN model
 ####################################
 
-import os
 import argparse
 import torch
 import wandb
@@ -29,6 +28,7 @@ parser.add_argument('--device', type=str, default=device, help='manual override 
 parser.add_argument('--wandb', type=str, default='offline', help='set wandb online or offline', choices={'online', 'offline'})
 parser.add_argument('--mode', type=str, default='train', help='define run mode', choices={'train', 'test'})
 parser.add_argument('--rname', type=str, help='name of the experiment when wandb is offline')
+parser.add_argument('--save', type=bool, default=True, help='whether or not to save models, turn off for cluster optimization')
 
 # model architecture for lightgcn
 parser.add_argument('--num_layers', type=int, default=3, help='num of layers i.e. iterations of agg function in model')
@@ -69,6 +69,8 @@ wandb.init(
     resume = 'auto',
 )
 
+args.rname = args.rname if args.wandb == 'offline' else wandb.run.name
+
 #######################################
 ################ SEED #################
 #######################################
@@ -84,7 +86,6 @@ if __name__ == '__main__':
   if args.mode == 'train':
     train_lightgcn(args)
   elif args.mode == 'test':
-    #os.makedirs(config.SUB_DIR, exist_ok=True)
     test_lightgcn(args)
   else:
     raise ValueError(f'Invalid run mode choices!')
