@@ -3,6 +3,7 @@ from configparser import ExtendedInterpolation
 from utils.utils import get_data, get_input_matrix, generate_submission, submit_on_kaggle
 from utils.config import *
 import numpy as np
+import pandas as pd
 from models.matrix_factorization import ALS, NMF, SVD, FunkSVD, BFM
 # from models.clustering import BCA
 import os
@@ -20,10 +21,24 @@ def main():
     # ALS
     # experiments_on_als_rank(X, W)
     # BFM
-    experiments_on_bfm_rank(X, W, data)
-    experiments_on_bfm_iterations(X, W, data)
-    experiments_on_bfm_options_by_rank(X, W, data)
-    experiments_on_bfm_options_by_iters(X, W, data)
+    #experiments_on_bfm_rank(X, W, data)
+    #experiments_on_bfm_iterations(X, W, data)
+    #experiments_on_bfm_options_by_rank(X, W, data)
+    #experiments_on_bfm_options_by_iters(X, W, data)
+
+    model = BFM(50, N_USERS, N_MOVIES, 50, verbose=1, with_ord=True, with_iu=True, with_ii=True)
+    model.fit(X, None, W, data=data, iter=500)
+
+    data_pd = pd.read_csv('data/sampleSubmission.csv') 
+    users, movies = [np.squeeze(arr) for arr in np.split(data_pd.Id.str.extract('r(\d+)_c(\d+)').values.astype(int) - 1, 2, axis=-1)]
+    X_test = np.column_stack((np.array(users), np.array(movies)))
+
+    # Predict
+    predictions = model.predict(X_test)
+
+    data_pd = data_pd.astype({"Prediction": float}, errors='raise')
+    data_pd['Prediction'] = predictions
+    data_pd.to_csv('submission.zip', compression='zip', float_format='%.3f', index = None)
 
 def clean_logs():
     os.system("rm log/*")
