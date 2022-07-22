@@ -65,18 +65,19 @@ def print_details_layers(dl):
   print('Vector dim: {}'.format(dl.vector_dim))
 
 def evaluate(encoder, evaluation_data_layer, cuda):
-  # evaluate the encoder
-  encoder.eval()
-  denom = 0.0
-  total_epoch_loss = 0.0
+  with torch.no_grad:
+    # evaluate the encoder
+    encoder.eval()
+    denom = 0.0
+    total_epoch_loss = 0.0
 
-  for i, (eval, src) in enumerate(evaluation_data_layer.iterate_one_epoch_eval()):
-    inputs = Variable(src.cuda().to_dense() if cuda else src.to_dense())
-    targets = Variable(eval.cuda().to_dense() if cuda else eval.to_dense())
-    outputs = encoder(inputs)
-    loss, num_ratings = deeprec.MSEloss(outputs, targets)
-    total_epoch_loss += loss.item()
-    denom += num_ratings.item()
+    for i, (eval, src) in enumerate(evaluation_data_layer.iterate_one_epoch_eval()):
+      inputs = Variable(src.cuda().to_dense() if cuda else src.to_dense())
+      targets = Variable(eval.cuda().to_dense() if cuda else eval.to_dense())
+      outputs = encoder(inputs)
+      loss, num_ratings = deeprec.MSEloss(outputs, targets)
+      total_epoch_loss += loss.item()
+      denom += num_ratings.item()
 
   return sqrt(total_epoch_loss / denom)
 
@@ -234,6 +235,7 @@ def train(args, config, params, cuda):
         eval_loss = evaluate(autoenc, eval_data_layer, cuda)
         wandb.log({'val_RMSE': eval_loss, 'epoch': epoch})
         print('\tEVALUATION RMSE loss: {:.2f}'.format(eval_loss))
+      autoenc.train()
 
     # save checkpoint
     if epoch in chkpts:
