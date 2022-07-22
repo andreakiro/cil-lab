@@ -16,8 +16,8 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import MultiStepLR
 
-import src.layers as L
-import src.model as deeprec
+import src.data.layers as L
+import src.models.deeprec as deeprec
 
 import wandb as wandb
 
@@ -181,12 +181,13 @@ def train(args, config, params, cuda):
   # list of epoch num when we'll save model
   chkpts = [args.epochs/args.num_checkpoints * x for x in range(1, args.num_checkpoints)]
 
+  autoenc.train()
+
   # starts training the model
   print('Starting training for {} epochs'.format(args.epochs))
   for epoch in range(int(args.epochs)):
     #print('Doing epoch {} of {}'.format(epoch, args.epochs))
     e_start_time = time.time()
-    autoenc.train()
     total_epoch_loss = 0.0
     denom = 0.0
 
