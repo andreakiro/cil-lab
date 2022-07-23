@@ -726,6 +726,7 @@ class FunkSVD(BaseModel):
             raise ValueError(f"{format} is not a valid file format!")
 
 
+
   ###############
  ###   BFM   ###
 ###############
@@ -799,80 +800,38 @@ class BFM(BaseModel):
         y_train = train[:, 2]
 
         # index "0" is reserved for unknown ids.
-        user_to_index = defaultdict(lambda : 0, { uid: i+1 for i,uid in enumerate(np.unique(X_train[:, 0])) })
-        movie_to_index = defaultdict(lambda: 0, { mid: i+1 for i,mid in enumerate(np.unique(X_train[:, 1])) })
-        USER_ID_SIZE = len(user_to_index) + 1
-        MOVIE_ID_SIZE = len(movie_to_index) + 1
+        self.user_to_index = defaultdict(lambda : 0, { uid: i+1 for i,uid in enumerate(np.unique(X_train[:, 0])) })
+        self.movie_to_index = defaultdict(lambda: 0, { mid: i+1 for i,mid in enumerate(np.unique(X_train[:, 1])) })
+        self.USER_ID_SIZE = len(self.user_to_index) + 1
+        self.MOVIE_ID_SIZE = len(self.movie_to_index) + 1
 
-        movie_vs_watched = dict()
-        user_vs_watched = dict()
+        self.movie_vs_watched = dict()
+        self.user_vs_watched = dict()
         for row in X_train:
             user_id = row[0]
             movie_id = row[1]
-            movie_vs_watched.setdefault(movie_id, list()).append(user_id)
-            user_vs_watched.setdefault(user_id, list()).append(movie_id)
+            self.movie_vs_watched.setdefault(movie_id, list()).append(user_id)
+            self.user_vs_watched.setdefault(user_id, list()).append(movie_id)
 
-        # given user/movie ids, add additional infos and return it as sparse
-        def augment_user_id(user_ids):
-            Xs = []
-            X_uid = sps.lil_matrix((len(user_ids), USER_ID_SIZE))
-            for index, user_id in enumerate(user_ids):
-                X_uid[index, user_to_index[user_id]] = 1
-            Xs.append(X_uid)
-            if self.with_iu:
-                X_iu = sps.lil_matrix((len(user_ids), MOVIE_ID_SIZE))
-                for index, user_id in enumerate(user_ids):
-                    watched_movies = user_vs_watched.get(user_id, [])
-                    normalizer = 1 / max(len(watched_movies), 1) ** 0.5
-                    for uid in watched_movies:
-                        X_iu[index, movie_to_index[uid]] = normalizer
-                Xs.append(X_iu)
-            return sps.hstack(Xs, format='csr')
-
-        def augment_movie_id(movie_ids):
-            Xs = []
-            X_movie = sps.lil_matrix((len(movie_ids), MOVIE_ID_SIZE))
-            for index, movie_id in enumerate(movie_ids):
-                X_movie[index, movie_to_index[movie_id]] = 1
-            Xs.append(X_movie)
-            if self.with_ii:
-                X_ii = sps.lil_matrix((len(movie_ids), USER_ID_SIZE))
-                for index, movie_id in enumerate(movie_ids):
-                    watched_users = movie_vs_watched.get(movie_id, [])
-                    normalizer = 1 / max(len(watched_users), 1) ** 0.5
-                    for uid in watched_users:
-                        X_ii[index, user_to_index[uid]] = normalizer
-                Xs.append(X_ii)
-            return sps.hstack(Xs, format='csr')
-        
         train_uid_unique, train_uid_index = np.unique(X_train[:, 0], return_inverse=True)
         train_mid_unique, train_mid_index = np.unique(X_train[:, 1], return_inverse=True)
-        user_data_train = augment_user_id(train_uid_unique)
-        movie_data_train = augment_movie_id(train_mid_unique)
-
-        test_uid_unique, test_uid_index = np.unique(X_test[:, 0], return_inverse=True)
-        test_mid_unique, test_mid_index = np.unique(X_test[:, 1], return_inverse=True)
-        user_data_test = augment_user_id(test_uid_unique)
-        movie_data_test = augment_movie_id(test_mid_unique)
+        user_data_train = self._augment_user_id(train_uid_unique)
+        movie_data_train = self._augment_movie_id(train_mid_unique)
 
         block_user_train = RelationBlock(train_uid_index, user_data_train)
         block_movie_train = RelationBlock(train_mid_index, movie_data_train)
-        block_user_test = RelationBlock(test_uid_index, user_data_test)
-        block_movie_test = RelationBlock(test_mid_index, movie_data_test)
 
         if self.with_ord:
             self.model = myfm.MyFMOrderedProbit(rank=self.k, random_seed=self.random_state)
+            # Ordinal classification: shift ratings from 1 -> 5 to 0 -> 4 since classes start at 0
+            y_train = y_train - 1
         else:
             self.model = myfm.MyFMRegressor(rank=self.k, random_seed=self.random_state)
-
-        # Ordinal classification: shift ratings from 1 -> 5 to 0 -> 4 since classes start at 0
-        if self.with_ord:
-            y_train = y_train - 1
 
         self.model.fit(None, y_train, n_iter=self.iter, X_rel=[block_user_train, block_movie_train])
 
         if test_size > 0.001:
-            y_pred = self.predict([block_user_test, block_movie_test])
+            y_pred = self.predict(X_test)
             # log only validation rmse, we have no training rmse
             val_rmse = self.score(y_test, y_pred)
             if self.verbose: print(f"BFM val rmse: {val_rmse}")
@@ -880,11 +839,18 @@ class BFM(BaseModel):
 
 
     def predict(self, X): 
+        test_uid_unique, test_uid_index = np.unique(X[:, 0], return_inverse=True)
+        test_mid_unique, test_mid_index = np.unique(X[:, 1], return_inverse=True)
+        user_data_test = self._augment_user_id(test_uid_unique)
+        movie_data_test = self._augment_movie_id(test_mid_unique)
+        block_user_test = RelationBlock(test_uid_index, user_data_test)
+        block_movie_test = RelationBlock(test_mid_index, movie_data_test)
+        X_test = [block_user_test, block_movie_test]
         if self.with_ord:
-            ordinal_probs = self.model.predict_proba(None, X)
+            ordinal_probs = self.model.predict_proba(None, X_test)
             ratings = ordinal_probs.dot(np.arange(1, 6))
         else:
-            ratings = self.model.predict(None, X)
+            ratings = self.model.predict(None, X_test)
         return ratings
 
 
@@ -915,7 +881,7 @@ class BFM(BaseModel):
         raise NotImplementedError()
     
     
-    def log_model_info(self, path = "./log/", format = "json"):
+    def log_model_info(self, path = "./log/", format = "json", options_in_name=False):
 
         model_info = {
             "id" : self.model_id,
@@ -930,7 +896,22 @@ class BFM(BaseModel):
             "val_rmse" : self.validation_rmse
         }
         if format == "json":
-            with open(path + self.model_name + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
+            options = ''
+            if options_in_name:
+                if self.with_ord:
+                    options += 'ord'
+                else:
+                    options += '___'
+                if self.with_iu:
+                    options += 'iu'
+                else:
+                    options += '__'
+                if self.with_ii:
+                    options += 'ii'
+                else:
+                    options += '__'
+
+            with open(path + self.model_name + options + '{0:05d}'.format(self.model_id) + '.json', 'w') as fp:
                 json.dump(model_info, fp, indent=4)
         else: 
             raise ValueError(f"{format} is not a valid file format!")
@@ -951,4 +932,38 @@ class BFM(BaseModel):
         """
         rmse = ((y_true - y_pred) ** 2).mean() ** .5
         return rmse
-        
+
+
+    # given user/movie ids, add additional infos and return it as sparse
+    def _augment_user_id(self, user_ids):
+        Xs = []
+        X_uid = sps.lil_matrix((len(user_ids), self.USER_ID_SIZE))
+        for index, user_id in enumerate(user_ids):
+            X_uid[index, self.user_to_index[user_id]] = 1
+        Xs.append(X_uid)
+        if self.with_iu:
+            X_iu = sps.lil_matrix((len(user_ids), self.MOVIE_ID_SIZE))
+            for index, user_id in enumerate(user_ids):
+                watched_movies = self.user_vs_watched.get(user_id, [])
+                normalizer = 1 / max(len(watched_movies), 1) ** 0.5
+                for uid in watched_movies:
+                    X_iu[index, self.movie_to_index[uid]] = normalizer
+            Xs.append(X_iu)
+        return sps.hstack(Xs, format='csr')
+
+    def _augment_movie_id(self, movie_ids):
+        Xs = []
+        X_movie = sps.lil_matrix((len(movie_ids), self.MOVIE_ID_SIZE))
+        for index, movie_id in enumerate(movie_ids):
+            X_movie[index, self.movie_to_index[movie_id]] = 1
+        Xs.append(X_movie)
+        if self.with_ii:
+            X_ii = sps.lil_matrix((len(movie_ids), self.USER_ID_SIZE))
+            for index, movie_id in enumerate(movie_ids):
+                watched_users = self.movie_vs_watched.get(movie_id, [])
+                normalizer = 1 / max(len(watched_users), 1) ** 0.5
+                for uid in watched_users:
+                    X_ii[index, self.user_to_index[uid]] = normalizer
+            Xs.append(X_ii)
+        return sps.hstack(Xs, format='csr')
+    

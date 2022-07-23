@@ -3,11 +3,48 @@ from turtle import color
 from matplotlib import pyplot as plt
 import json
 import os
+import pandas as pd
 import seaborn as sns
 import numpy as np
 
 def main():
      generate_rank_experiments_plot()
+     generate_ensemble_weights_plot()
+
+def generate_ensemble_weights_plot():
+     test = pd.read_csv('log/ensemble/test_true.csv')['Prediction']
+     bfm_preds = pd.read_csv('log/ensemble/bfm_preds.csv')['Prediction']
+     sim_preds = {
+          'none_30' : pd.read_csv('log/ensemble/sim_preds_w_none_n_30.csv')['Prediction'],
+          'none_10000' : pd.read_csv('log/ensemble/sim_preds_w_none_n_10000.csv')['Prediction'],
+          'normal_30' : pd.read_csv('log/ensemble/sim_preds_w_normal_n_30.csv')['Prediction'],
+          'normal_10000' : pd.read_csv('log/ensemble/sim_preds_w_normal_n_10000.csv')['Prediction']
+     }
+
+     sim_options_to_label = {
+          'none_30' : 'no weighting, 30 neighbors',
+          'none_10000' : 'no weighting, all neighbors',
+          'normal_30' : ' normal weighting, 30 neighbors',
+          'normal_10000' : 'normal_weighting, all neighbors'
+     }
+
+     val_by_weight = {}
+     for model_description, pred in sim_preds.items():
+          for i in range(0, 50, 1):
+               weights = {'bfm': 100, 'sim': i}
+
+               weighted_preds = (np.array(bfm_preds) * weights['bfm'] + np.array(pred) * weights['sim']) / sum(weights.values())
+               rmse = ((np.array(test) - np.array(weighted_preds)) ** 2).mean() ** .5
+               val_by_weight[i] = rmse
+
+               lists = sorted(val_by_weight.items())
+               x, y = zip(*lists)
+               plt.plot(x, y, label = 'Validation error')
+               plt.ylabel('Validation RMSE', fontsize = 12)
+               plt.xlabel('Similarity weight (BFM having weight 100)', fontsize = 12)
+               plt.legend()
+               plt.savefig("./plots/BFM_Sim_" + model_description + "_weights.png")
+               plt.cla()
 
 def generate_rank_experiments_plot():
      val_svd = []
@@ -15,10 +52,65 @@ def generate_rank_experiments_plot():
      val_als = []
      val_funk = []
      val_bfm = []
+     val_bfm_iters = []
+     val_bfm_options_rank = {
+          '_______': [],
+          '___iu__': [],
+          '_____ii': [],
+          '___iuii': [],
+          'ord____': [],
+          'ordiu__': [],
+          'ord__ii': [],
+          'ordiuii': []
+     }
+     val_bfm_options_iters = {
+          '_______': [],
+          '___iu__': [],
+          '_____ii': [],
+          '___iuii': [],
+          'ord____': [],
+          'ordiu__': [],
+          'ord__ii': [],
+          'ordiuii': []
+     }
+
+     options_to_label = {
+          '_______': 'BFM',
+          '___iu__': 'BFM with implicit user information',
+          '_____ii': 'BFM with implicit movie information',
+          '___iuii': 'BFM with implicit user and movie information',
+          'ord____': 'BFM with ordered probit',
+          'ordiu__': 'BFM with ordered probit and implicit user information',
+          'ord__ii': 'BFM with ordered probit and implicit movie information',
+          'ordiuii': 'BFM with ordered probit, implicit user and movie information'
+     }
 
      fs = os.listdir("./log/")
      for f in fs:
-          if f[:3] == "BFM":
+          if f == "log_BFM_iters":
+               fs2 = os.listdir("./log/" + f)
+               for f2 in fs2:
+                    with open("./log/" + f + '/' + f2) as json_file:
+                         js = json.load(json_file)
+                         val_bfm_iters.append([js["parameters"]["iter"], js["val_rmse"][0]])
+
+          elif f == "log_BFM_options_rank":
+               fs2 = os.listdir("./log/" + f)
+               for f2 in fs2:
+                    with open("./log/" + f + '/' + f2) as json_file:
+                         js = json.load(json_file)
+                         index = f2[3:10]
+                         val_bfm_options_rank[index].append([js["parameters"]["rank"], js["val_rmse"][0]])
+
+          elif f == "log_BFM_options_iters":
+               fs2 = os.listdir("./log/" + f)
+               for f2 in fs2:
+                    with open("./log/" + f + '/' + f2) as json_file:
+                         js = json.load(json_file)
+                         index = f2[3:10]
+                         val_bfm_options_iters[index].append([js["parameters"]["iter"], js["val_rmse"][0]])
+
+          elif f[:3] == "BFM":
                with open("./log/" + f) as json_file:
                     js = json.load(json_file)
                     val_bfm.append([js["parameters"]["rank"], js["val_rmse"][0]])
@@ -49,14 +141,47 @@ def generate_rank_experiments_plot():
      val_als = sorted(val_als, key=lambda x: x[0])
      val_funk = sorted(val_funk, key=lambda x: x[0])
      val_bfm = sorted(val_bfm, key=lambda x: x[0])
+     val_bfm_iters = sorted(val_bfm_iters, key=lambda x: x[0])
+     val_bfm_options_rank = {key:sorted(value, key=lambda x: x[0]) for (key, value) in val_bfm_options_rank.items()}
+     val_bfm_options_iters = {key:sorted(value, key=lambda x: x[0]) for (key, value) in val_bfm_options_iters.items()}
      
      sns.set_style("white")
+
+     # Different options by rank
+     for options, val in val_bfm_options_rank.items():
+          plt.plot([t[0] for t in val], [t[1] for t in val], '-x', label = options_to_label[options])
+     plt.ylim(top=0.995, bottom=0.968)
+     plt.ylabel('Validation RMSE', fontsize = 12)
+     plt.xlabel('BFM rank', fontsize = 12)
+     plt.legend()
+     plt.savefig("./plots/BFM_options_by_rank.png")
+     plt.cla()
+
+     # Different options by iters
+     for options, val in val_bfm_options_iters.items():
+          plt.plot([t[0] for t in val], [t[1] for t in val], '-x', label = options_to_label[options])
+     plt.ylim(top=0.995, bottom=0.968)
+     plt.ylabel('Validation RMSE', fontsize = 12)
+     plt.xlabel('BFM iterations', fontsize = 12)
+     plt.legend()
+     plt.savefig("./plots/BFM_options_by_iters.png")
+     plt.cla()
+
+     # Iterations plot for BFM rank 25
+     plt.plot([t[0] for t in val_bfm_iters], [t[1] for t in val_bfm_iters], label = 'Validation error')
+     plt.ylabel('RMSE', fontsize = 12)
+     plt.xlabel('BFM iterations', fontsize = 12)
+     plt.legend()
+     plt.savefig("./plots/BFM_iters.png")
+     plt.cla()
      
-     plt.plot([t[0] for t in val], [t[1] for t in val], label = 'Validation error')
+     # Ranks plot for BFM with 500 iterations
+     plt.plot([t[0] for t in val_bfm], [t[1] for t in val_bfm], label = 'Validation error')
      plt.ylabel('RMSE', fontsize = 12)
      plt.xlabel('BFM rank', fontsize = 12)
      plt.legend()
-     plt.savefig("./plots/BFM.png")
+     plt.savefig("./plots/BFM_ranks.png")
+     plt.cla()
 
      plt.plot([t[0] for t in val_bfm], [t[1] for t in val_bfm], '-x', label = 'BFM')
      plt.plot([t[0] for t in val_svd], [t[1] for t in val_svd], '-x', label = 'SVD', markevery=[5])
@@ -71,7 +196,7 @@ def generate_rank_experiments_plot():
      
      plt.xticks(list(range(2,19, 2)) + [22, 26, 30])
 
-     plt.ylim(top = 1.02, bottom=0.983)
+     plt.ylim(top = 1.02, bottom=0.968)
 
      plt.ylabel('Validation RMSE', fontsize = 12)
      plt.xlabel('rank', fontsize = 12)
