@@ -24,10 +24,10 @@ def main():
     # ALS
     # experiments_on_als_rank(X, W)
     # BFM
-    #experiments_on_bfm_rank(X, W, data)
-    #experiments_on_bfm_iterations(X, W, data)
-    #experiments_on_bfm_options_by_rank(X, W, data)
-    #experiments_on_bfm_options_by_iters(X, W, data)
+    # experiments_on_bfm_rank(X, W, data)
+    # experiments_on_bfm_iterations(X, W, data)
+    # experiments_on_bfm_options_by_rank(X, W, data)
+    # experiments_on_bfm_options_by_iters(X, W, data)
     # experiments_on_ensemble_bfm(X, W, data)
     # Predict Kaggle data
     train_and_run_on_submission_data(X, W, data)
@@ -35,15 +35,12 @@ def main():
 
 def train_and_run_on_submission_data(X, W, data):
     model = BFM(50, N_USERS, N_MOVIES, 50, verbose=1, with_ord=True, with_iu=True, with_ii=True)
-
     # Train
     model.fit(X, None, W, data, iter=500)
-
     # Predict
     X_test = load_submission_data(SUBMISSION_DATA_PATH)
     predictions = model.predict(X_test)
-
-    # Write results, ready for Kaggle
+    # Write results to file, ready for Kaggle
     data_pd = data_pd.astype({"Prediction": float}, errors='raise')
     data_pd['Prediction'] = predictions
     data_pd.to_csv('submission.zip', compression='zip', float_format='%.3f', index = None)
