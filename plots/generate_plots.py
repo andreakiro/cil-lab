@@ -3,11 +3,48 @@ from turtle import color
 from matplotlib import pyplot as plt
 import json
 import os
+import pandas as pd
 import seaborn as sns
 import numpy as np
 
 def main():
      generate_rank_experiments_plot()
+     generate_ensemble_weights_plot()
+
+def generate_ensemble_weights_plot():
+     test = pd.read_csv('log/ensemble/test_true.csv')['Prediction']
+     bfm_preds = pd.read_csv('log/ensemble/bfm_preds.csv')['Prediction']
+     sim_preds = {
+          'none_30' : pd.read_csv('log/ensemble/sim_preds_w_none_n_30.csv')['Prediction'],
+          'none_10000' : pd.read_csv('log/ensemble/sim_preds_w_none_n_10000.csv')['Prediction'],
+          'normal_30' : pd.read_csv('log/ensemble/sim_preds_w_normal_n_30.csv')['Prediction'],
+          'normal_10000' : pd.read_csv('log/ensemble/sim_preds_w_normal_n_10000.csv')['Prediction']
+     }
+
+     sim_options_to_label = {
+          'none_30' : 'no weighting, 30 neighbors',
+          'none_10000' : 'no weighting, all neighbors',
+          'normal_30' : ' normal weighting, 30 neighbors',
+          'normal_10000' : 'normal_weighting, all neighbors'
+     }
+
+     val_by_weight = {}
+     for model_description, pred in sim_preds.items():
+          for i in range(0, 50, 1):
+               weights = {'bfm': 100, 'sim': i}
+
+               weighted_preds = (np.array(bfm_preds) * weights['bfm'] + np.array(pred) * weights['sim']) / sum(weights.values())
+               rmse = ((np.array(test) - np.array(weighted_preds)) ** 2).mean() ** .5
+               val_by_weight[i] = rmse
+
+               lists = sorted(val_by_weight.items())
+               x, y = zip(*lists)
+               plt.plot(x, y, label = 'Validation error')
+               plt.ylabel('Validation RMSE', fontsize = 12)
+               plt.xlabel('Similarity weight (BFM having weight 100)', fontsize = 12)
+               plt.legend()
+               plt.savefig("./plots/BFM_Sim_" + model_description + "_weights.png")
+               plt.cla()
 
 def generate_rank_experiments_plot():
      val_svd = []
