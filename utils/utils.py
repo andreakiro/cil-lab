@@ -2,11 +2,30 @@ import pandas as pd
 import numpy as np
 import math
 import os
+from sklearn.model_selection import train_test_split
 
 N_MOVIES = 1000
 N_USERS = 10000
 
-def get_input_matrix():
+
+def get_test_mask(test):
+    W_test = np.full((N_USERS, N_MOVIES), False)
+    for sample in test:
+        W_test[sample[0]][sample[1]] = True
+    return W_test
+
+
+def load_data(data_path):
+    data_pd = pd.read_csv(data_path) 
+    users, movies = [np.squeeze(arr) for arr in np.split(data_pd.Id.str.extract('r(\d+)_c(\d+)').values.astype(int) - 1, 2, axis=-1)]
+    predictions = data_pd.Prediction.values
+
+    data = np.column_stack((np.array(users), np.array(movies), np.array(predictions)))
+
+    return data
+
+
+def get_input_matrix(data):
     '''
     Get the input matrix
 
@@ -16,9 +35,8 @@ def get_input_matrix():
         The input array with the true ratings and np.nan where no ratings where given and the 
         mask array containing True where the entries are given and False otherwise.
     '''
-    data_pd = pd.read_csv('./data/data_train.csv') 
-    users, movies = [np.squeeze(arr) for arr in np.split(data_pd.Id.str.extract('r(\d+)_c(\d+)').values.astype(int) - 1, 2, axis=-1)]
-    predictions = data_pd.Prediction.values
+    users, movies, predictions = data[:, 0], data[:, 1], data[:, 2]
+
     # create data matrix
     X = np.full((N_USERS, N_MOVIES), np.nan)
     W = np.full((N_USERS, N_MOVIES), False)
