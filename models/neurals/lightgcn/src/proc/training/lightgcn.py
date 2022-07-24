@@ -15,8 +15,12 @@ from pathlib import Path
 
 from src.models.lightgcn import LightGCN
 from src.losses.RMSE import RMSELoss
-from src.data.dataloader import get_dataloader
+from src.data.dataloader import DataLoaderLightGCN
 from src.configs import config
+
+#######################################
+################ TRAIN ################
+#######################################
 
 def train_lightgcn(args):
     model = LightGCN(args)
@@ -25,7 +29,9 @@ def train_lightgcn(args):
 
     RMSE = RMSELoss()
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    train_dataloader, len_tdl = get_dataloader(args, split='train')
+    train_dataloder = DataLoaderLightGCN(args, split='train')
+    tdl = train_dataloder.get()
+    len_tdl = train_dataloder.size()
     
     wandb.watch(model)
     model.to(args.device)
@@ -42,7 +48,7 @@ def train_lightgcn(args):
         training_loss = 0.0
         epoch_loss = 0.0
         
-        for i_batch, batch in enumerate(train_dataloader):
+        for i_batch, batch in enumerate(tdl):
             optimizer.zero_grad()
 
             if torch.cuda.is_available():
@@ -60,7 +66,7 @@ def train_lightgcn(args):
                 wandb.log({'train_loss': training_loss / config.PRINT_FREQ})
                 training_loss = 0.0
         
-        epoch_loss /= len(train_dataloader)
+        epoch_loss /= len(tdl)
         logs[i_epoch + 1] = {'train_loss': epoch_loss}
         print(f'Epoch {i_epoch + 1:3}: training loss {epoch_loss:.5f}')
         if np.isnan(epoch_loss): # early termination
@@ -81,14 +87,19 @@ def train_lightgcn(args):
     with open('logs.pickle', 'wb') as handle:
         pickle.dump(logs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+#######################################
+################ EVAL #################
+#######################################
+
 def evaluate(args, model, epoch):
     model.eval() # turn to eval mode
-    evaluate_dataloader, _ = get_dataloader(args, split='eval')
+    eval_dataloder = DataLoaderLightGCN(args, split='eval')
+    edl = eval_dataloder.get()
     with torch.no_grad():
         RMSE = RMSELoss()
         rmse_eval = 0.0
 
-        for _, batch in enumerate(evaluate_dataloader):
+        for _, batch in enumerate(edl):
             if torch.cuda.is_available():
                 batch = batch.cuda()
 
@@ -96,11 +107,15 @@ def evaluate(args, model, epoch):
             loss = RMSE(scores, batch[:, 2])
             rmse_eval += loss.item()
 
-        rmse_eval /= len(evaluate_dataloader)
+        rmse_eval /= len(edl)
         print(f'Epoch {epoch:3}: evaluation loss {rmse_eval:.5f}')
         wandb.log({'eval_loss': rmse_eval})
 
     return rmse_eval
+
+#######################################
+############### HELPERS ###############
+#######################################
 
 def save_model(args, model, epoch):
     filename = f'epoch_{epoch}.model'

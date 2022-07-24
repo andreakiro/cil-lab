@@ -1,6 +1,5 @@
 # CIL Dataset and DataLoader PyTorch implementation
 # Dataset of (user_index, item_index, rating) tuples
-# Adapted from github.com/LucaMalagutti/CIL-ETHZ-2021
 #####################################################
 
 import torch
@@ -8,7 +7,35 @@ import numpy as np
 import torch.utils.data as td
 from src.configs import config
 
-class CILDataset(td.Dataset):
+#######################################
+######## DATA LOADER LILGHTGCN ########
+#######################################
+
+class DataLoaderLightGCN():
+
+    def __init__(self, args, split='train', shuffle=True):
+        self.dataset = DatasetLightGCN(split)
+        self.len_set = len(self.dataset)
+        self.dataloader = td.DataLoader(
+            dataset=self.dataset,
+            batch_size=args.batch_size,
+            shuffle=shuffle,
+            pin_memory=True,
+            drop_last=False
+        )
+
+    def get(self):
+        print(f'Data loading {self.len_set} samples')
+        return self.dataloader
+
+    def size(self):
+        return self.len_set
+
+#######################################
+########## DATASET LILGHTGCN ##########
+#######################################
+
+class DatasetLightGCN(td.Dataset):
 
     def __init__(self, split='train'):
         self.split = split
@@ -20,7 +47,7 @@ class CILDataset(td.Dataset):
             dtype=np.float32,
         )
 
-        self.val_df = np.loadtxt(
+        self.eval_df = np.loadtxt(
             open(config.EVAL_DATA, 'rb'),
             delimiter=",",
             skiprows=1,
@@ -36,7 +63,7 @@ class CILDataset(td.Dataset):
 
     def __getitem__(self, idx):
         if self.split == 'eval':
-            return torch.from_numpy(self.val_df[idx])
+            return torch.from_numpy(self.eval_df[idx])
         elif self.split == 'test':
             return torch.from_numpy(self.test_df[idx])
 
@@ -44,22 +71,9 @@ class CILDataset(td.Dataset):
 
     def __len__(self):
         if self.split == 'eval':
-            return self.val_df.shape[0]
+            return self.eval_df.shape[0]
         elif self.split == 'test':
             return self.test_df.shape[0]
 
         return self.train_df.shape[0]
 
-def get_dataloader(args, split='train', shuffle=True):
-    dataset = CILDataset(split)
-    dataloader = td.DataLoader(
-        dataset,
-        batch_size=args.batch_size,
-        shuffle=shuffle,
-        pin_memory=True,
-        drop_last=False,
-    )
-    
-    len_tdl = len(dataset)
-    print('Loading data with %d samples' % len_tdl)
-    return dataloader, len_tdl
