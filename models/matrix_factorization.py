@@ -785,16 +785,12 @@ class BFM(BaseModel):
         """
         self.iter = iter
 
-        # Unpack and concat vectors
-        users, movies, predictions = data
-        ump = np.column_stack((np.array(users), np.array(movies), np.array(predictions)))
-
         if test_size > 0.001:
-            train, test = train_test_split(ump, test_size=test_size, random_state=self.random_state)
+            train, test = train_test_split(data, test_size=test_size, random_state=self.random_state)
             X_test = test[:, :2]
             y_test = test[:, 2]
         else:
-            train = ump
+            train = data
 
         X_train = train[:, :2]
         y_train = train[:, 2]
