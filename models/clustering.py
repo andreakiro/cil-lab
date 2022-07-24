@@ -1,5 +1,4 @@
-from models.dimensionality_reduction import SVD
-from models.matrix_factorization import ALS
+from models.matrix_factorization import ALS, SVD
 from models.base_model import BaseModel
 import numpy as np 
 import warnings
