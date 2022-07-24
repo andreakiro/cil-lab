@@ -23,3 +23,13 @@ parameters:
     max: 0.002
   batch_size:
     values: [1024, 2048, 4096]
+
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - '--wandb'
+  - 'online'
+  - '--save'
+  - False
+  - ${args}
