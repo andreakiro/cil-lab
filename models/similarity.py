@@ -95,7 +95,7 @@ class SimilarityMethods(BaseModel):
             assert user_weight>=0 and user_weight<=1, "User weight must be in range [0,1], both included"
             self.user_weight = user_weight
         
-        self.model_name = method + " " + similarity_measure + " similarity " + ("with "+ weighting if weighting is not None else "without") + " weighting"
+        self.model_name = method + "_" + similarity_measure + "_similarity_" + ("with_"+ weighting if weighting is not None else "without") + "_weighting"
         self.fitted = False
 
     
