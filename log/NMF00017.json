@@ -1,0 +1,15 @@
+{
+    "id": 17,
+    "name": "NMF",
+    "parameters": {
+        "rank": 19,
+        "imputation": "mean",
+        "iter": 1024
+    },
+    "train_rmse": [
+        0.9638936426948361
+    ],
+    "val_rmse": [
+        1.0127410353134987
+    ]
+}

@@ -12,7 +12,7 @@ class BaseModel(ABC):
     Template base model.
     """
 
-    def __init__(self, model_id, n_users, n_movies, verbose = 0, random_state = 42):
+    def __init__(self, model_id, n_users, n_movies, verbose = 0, random_state = 1):
         self.model_id = model_id
         # set number of users and movies
         self.n_users = n_users
@@ -119,11 +119,11 @@ class BaseModel(ABC):
         return X_train, W_train, X_test, W_test
     
 
-    def normalize(self, X, axis = 0, technique = "zscore"):
+    def normalize(self, X, axis = 0, strategy = "zscore"):
         """
         Normalize the input matrix.
         """
-        if technique == "zscore":
+        if strategy == "zscore":
             # save columns mean and std to invert z-score
             self.μ = np.array(np.broadcast_to(np.nanmean(X, axis=axis)[:], (X.shape)))
             self.μ = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=0).fit_transform(self.μ)
@@ -136,29 +136,35 @@ class BaseModel(ABC):
             self.max_val = np.nanmax(X)
             X = (X-self.min_val)/(self.max_val-self.min_val)
         else:
-            raise ValueError(f"Technique '{technique}' is not valid.")
+            raise ValueError(f"Strategy '{strategy}' is not valid.")
         return X
 
 
-    def invert_normalization(self, M, technique = "zscore"):
+    def invert_normalization(self, M, strategy = "zscore"):
         """
         Invert normalization (mostly for prediction results).
         """
-        if technique == "zscore":
+        if strategy == "zscore":
             return np.multiply(M, self.σ) + self.μ 
         elif technique == "min_max":
             return M*(self.max_val - self.min_val) + self.min_val
         else:
-            raise ValueError(f"Technique '{technique}' is not valid.")
+            raise ValueError(f"Strategy '{strategy}' is not valid.")
 
 
-    def impute_missing_values(self, X, strategy="zero"):
+    def impute_missing_values(self, X, strategy="zeros"):
         """
         Impute missing (unobserved) values in the input matrix.
         """
         # impute values using sklearn imputation
-        if strategy == "zero":
+        if strategy == "zeros":
             X = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=0).fit_transform(X)
+        elif strategy == "mean":
+            X = SimpleImputer(missing_values=np.nan, strategy='mean').fit_transform(X)
+        elif strategy == "most_frequent":
+            X = SimpleImputer(missing_values=np.nan, strategy='most_frequent').fit_transform(X)
+        elif strategy == "median":
+            X = SimpleImputer(missing_values=np.nan, strategy='median').fit_transform(X)
         else:
             raise ValueError(f"Strategy '{strategy}' is not valid.")
         return X

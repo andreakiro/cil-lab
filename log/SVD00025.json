@@ -1,0 +1,15 @@
+{
+    "id": 25,
+    "name": "SVD",
+    "parameters": {
+        "rank": 27,
+        "imputation": "zeros",
+        "normalization": "zscore"
+    },
+    "train_rmse": [
+        0.9138482591586305
+    ],
+    "val_rmse": [
+        1.014780759048767
+    ]
+}

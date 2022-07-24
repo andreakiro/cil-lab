@@ -15,13 +15,20 @@ def get_test_mask(test):
     return W_test
 
 
-def load_data(data_path="data/data_train.csv"):
+def load_data(data_path):
     data_pd = pd.read_csv(data_path) 
     users, movies = [np.squeeze(arr) for arr in np.split(data_pd.Id.str.extract('r(\d+)_c(\d+)').values.astype(int) - 1, 2, axis=-1)]
     predictions = data_pd.Prediction.values
 
     data = np.column_stack((np.array(users), np.array(movies), np.array(predictions)))
 
+    return data
+
+
+def load_submission_data(data_path):
+    data_pd = pd.read_csv('data/sampleSubmission.csv') 
+    users, movies = [np.squeeze(arr) for arr in np.split(data_pd.Id.str.extract('r(\d+)_c(\d+)').values.astype(int) - 1, 2, axis=-1)]
+    data = np.column_stack((np.array(users), np.array(movies)))
     return data
 
 
