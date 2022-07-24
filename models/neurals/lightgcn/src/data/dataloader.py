@@ -59,6 +59,7 @@ def get_dataloader(args, split='train', shuffle=True):
         pin_memory=True,
         drop_last=False,
     )
-
-    print('Loading data with %d samples' % len(dataset))
-    return dataloader
+    
+    len_tdl = len(dataset)
+    print('Loading data with %d samples' % len_tdl)
+    return dataloader, len_tdl

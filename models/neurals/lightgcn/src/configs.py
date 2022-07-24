@@ -24,7 +24,7 @@ config.TRAIN_DATA = Path(config.DATA_DIR, config.TRAIN_FILE)
 config.EVAL_DATA = Path(config.DATA_DIR, config.EVAL_FILE)
 config.TEST_DATA = Path(config.DATA_DIR, config.TEST_DATA)
 
-config.PRINT_FREQ = 1 # print training loss every x batch (in epoch)
+config.PRINT_FREQ = 50 # print training loss every x batch (in epoch)
 config.EVAL_FREQ = 1 # evaluate the model every x epochs (out epoch)
 
 # LIGHTGCN SPECIFIC

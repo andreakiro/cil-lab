@@ -31,11 +31,11 @@ parser.add_argument('--rname', type=str, help='name of the experiment when wandb
 parser.add_argument('--save', type=bool, default=True, help='whether or not to save models, turn off for cluster optimization')
 
 # model architecture for lightgcn
-parser.add_argument('--num_layers', type=int, default=3, help='num of layers i.e. iterations of agg function in model')
+parser.add_argument('--num_layers', type=int, default=4, help='num of layers i.e. iterations of agg function in model')
 parser.add_argument('--emb_size', type=int, default=64, help='layer embedding size of the model')
 
 # training parameters
-parser.add_argument('--epochs', type=int, default=1, help='maximum number of epochs for training')
+parser.add_argument('--epochs', type=int, default=50, help='maximum number of epochs for training')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='global learning rate for training')
 parser.add_argument('--batch_size', type=int, default=2048, help='global batch size for training')
 

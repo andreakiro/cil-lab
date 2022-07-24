@@ -6,6 +6,8 @@
 import os
 import torch
 import wandb
+import time
+import pickle
 import numpy as np
 
 from torch import optim
@@ -23,14 +25,20 @@ def train_lightgcn(args):
 
     RMSE = RMSELoss()
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    train_dataloader = get_dataloader(args, split='train')
+    train_dataloader, len_tdl = get_dataloader(args, split='train')
     
     wandb.watch(model)
     model.to(args.device)
     model.train()
+    logs = dict()
+    st = time.time()
 
     for i_epoch in range(args.epochs):
-        print(f'Starting epoch {i_epoch + 1} of {args.epochs}')
+        e_start_time = time.time()
+        num_batches = len_tdl / args.batch_size
+        print(f'Starting epoch {i_epoch + 1:3} of {args.epochs:3}')
+        print(f'{num_batches:.0f} batches of {args.batch_size} elems')
+        wandb.log({'epoch': (i_epoch + 1)})
         training_loss = 0.0
         epoch_loss = 0.0
         
@@ -48,24 +56,34 @@ def train_lightgcn(args):
             epoch_loss += loss.item()
             
             if i_batch % config.PRINT_FREQ == (config.PRINT_FREQ - 1):
-                print(f'lightgcn training loss {(training_loss / config.PRINT_FREQ):.5f}')
+                print(f'Batch {i_batch + 1:3}: training loss {training_loss / config.PRINT_FREQ:.3f}')
                 wandb.log({'train_loss': training_loss / config.PRINT_FREQ})
                 training_loss = 0.0
         
         epoch_loss /= len(train_dataloader)
-        print(f'lightgcn training loss for epoch {i_epoch} is {epoch_loss:.5f}')
+        logs[i_epoch + 1] = {'train_loss': epoch_loss}
+        print(f'Epoch {i_epoch + 1:3}: training loss {epoch_loss:.5f}')
         if np.isnan(epoch_loss): # early termination
             wandb.finish()
             return
 
-        if i_epoch % config.EVAL_FREQ == (config.EVAL_FREQ - 1) and args.save:
-            evaluate(args, model)
-            save_model(args, model, i_epoch)
+        if i_epoch % config.EVAL_FREQ == (config.EVAL_FREQ - 1):
+            print(f'Starting evaluation of epoch {i_epoch + 1:3}')
+            logs[i_epoch + 1]['eval_loss'] = evaluate(args, model, i_epoch + 1)
+            if args.save:
+                save_model(args, model, i_epoch + 1)
             model.train() # revert to train mode
 
-def evaluate(args, model):
+        e_end_time = time.time()
+        print(f'Epoch {i_epoch + 1:3} finished in {e_end_time - e_start_time:.2f} seconds')
+
+    print(f'Finished all in {time.time() - st:.2f} seconds')
+    with open('logs.pickle', 'wb') as handle:
+        pickle.dump(logs, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+def evaluate(args, model, epoch):
     model.eval() # turn to eval mode
-    evaluate_dataloader = get_dataloader(args, split='eval')
+    evaluate_dataloader, _ = get_dataloader(args, split='eval')
     with torch.no_grad():
         RMSE = RMSELoss()
         rmse_eval = 0.0
@@ -79,8 +97,10 @@ def evaluate(args, model):
             rmse_eval += loss.item()
 
         rmse_eval /= len(evaluate_dataloader)
-        print(f'lightgcn evaluation loss {rmse_eval:.5f}')
+        print(f'Epoch {epoch:3}: evaluation loss {rmse_eval:.5f}')
         wandb.log({'eval_loss': rmse_eval})
+
+    return rmse_eval
 
 def save_model(args, model, epoch):
     filename = f'epoch_{epoch}.model'
