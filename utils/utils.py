@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import math
 import os
+from sklearn.model_selection import train_test_split
 
 N_MOVIES = 1000
 N_USERS = 10000
