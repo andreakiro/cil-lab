@@ -29,8 +29,9 @@ def main():
     # experiments_on_bfm_options_by_rank(X, W, data)
     # experiments_on_bfm_options_by_iters(X, W, data)
     # experiments_on_ensemble_bfm(X, W, data)
+    experiments_on_ensemble_als(data)
     # Predict Kaggle data
-    train_and_run_on_submission_data(X, W, data)
+    # train_and_run_on_submission_data(X, W, data)
 
 
 def train_and_run_on_submission_data(X, W, data):
@@ -145,6 +146,21 @@ def experiments_on_ensemble_bfm(X, W, data):
 
     np.savetxt('log/ensemble/bfm_preds.csv', test_predictions, header='Prediction', comments='')
     np.savetxt('log/ensemble/test_true.csv', test[:, 2], header='Prediction', comments='')
+
+def experiments_on_ensemble_als(data):
+    train, test = train_test_split(data, test_size=0.2, random_state=42)
+    X, W = get_input_matrix(train)
+
+    model = ALS(3, N_USERS, N_MOVIES, 3, verbose=1)
+    model.fit(X, None, W, epochs=20)
+    predictions = model.predict(X)
+
+    # Extract the predictions into one array
+    test_predictions = []
+    for row in test:
+        test_predictions.append(predictions[row[0]][row[1]])
+
+    np.savetxt('log/ensemble/als_preds.csv', test_predictions, header='Prediction', comments='')
     
 if __name__ == '__main__':
     main()
