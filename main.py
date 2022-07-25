@@ -41,16 +41,24 @@ def main():
 
 
 def train_and_run_on_submission_data(X, W, data):
-    model = BFM(50, N_USERS, N_MOVIES, 50, verbose=1, with_ord=True, with_iu=True, with_ii=True)
-    # Train
-    model.fit(X, None, W, data, iter=500)
-    # Predict
     X_test = load_submission_data(SUBMISSION_DATA_PATH)
-    predictions = model.predict(X_test)
+    W_test = get_test_mask(X_test)
+    # BFM predictions
+    bfm_model = BFM(50, N_USERS, N_MOVIES, 50, verbose=1, with_ord=True, with_iu=True, with_ii=True)
+    bfm_model.fit(X, None, W, data, iter=500)
+    bfm_preds = bfm_model.predict(X_test)
+    # Similarity predictions
+    sim_model = SimilarityMethods(0, N_USERS, N_MOVIES, similarity_measure="PCC", weighting='normal', method="item", k=30, signifiance_threshold=None)
+    sim_model.fit(X, None, W, log_rmse=False)
+    sim_preds_matrix = sim_model.predict(W_test, invert_norm=False)
+    # Extract the similarity predictions into a 1D array
+    sim_preds = []
+    for row in X_test:
+        sim_preds.append(sim_preds_matrix[row[0]][row[1]])
+    weights = {'bfm': 100, 'sim': 19}
+    ensemble_preds = (np.array(bfm_preds) * weights['bfm'] + np.array(sim_preds) * weights['sim']) / sum(weights.values())
     # Write results to file, ready for Kaggle
-    data_pd = data_pd.astype({"Prediction": float}, errors='raise')
-    data_pd['Prediction'] = predictions
-    data_pd.to_csv('submission.zip', compression='zip', float_format='%.3f', index = None)
+    generate_submission(ensemble_preds, SUBMISSION_DATA_PATH)
 
 
 def clean_logs():
@@ -126,30 +134,6 @@ def experiments_on_similarity(X, W):
                         user_similarity, item_similarity = model.get_similarity_matrices()
                         id += 1
 
-def experiments_on_ensemble_similarity(data):
-
-    train, test = train_test_split(data, test_size=0.2, random_state=42)
-    X, W = get_input_matrix(train)
-    W_test = get_test_mask(test)
-
-    weightings = ['normal', None]
-    numbers_nn = [30, 10000] #10000 means taking all the neighbors which are positive
-
-    for weighting in weightings:
-        for k in numbers_nn:
-            print('Weighting: ' + str(weighting) + ', Neighbors: ' + str(k))
-
-            model = SimilarityMethods(0, N_USERS, N_MOVIES, similarity_measure="PCC", weighting=weighting, method="item", k=k, signifiance_threshold=None)
-            model.fit(X, None, W, log_rmse=False)
-            predictions = model.predict(W_test, invert_norm=False)
-
-            # Extract the predictions into one array
-            test_predictions = []
-            for row in test:
-                test_predictions.append(predictions[row[0]][row[1]])
-            
-            np.savetxt('log/ensemble/sim_preds_w_' + str(weighting) + '_n_' + str(k) + '.csv', test_predictions, header='Prediction', comments='')
-
 def experiments_on_bfm_iterations(X, W, data):
     iterations = range(1, 202, 50) + range(251, 1002, 100)
     for i in iterations:
@@ -201,6 +185,29 @@ def experiments_on_ensemble_bfm(X, W, data):
 
     np.savetxt('log/ensemble/bfm_preds.csv', test_predictions, header='Prediction', comments='')
     np.savetxt('log/ensemble/test_true.csv', test[:, 2], header='Prediction', comments='')
+
+def experiments_on_ensemble_similarity(data):
+    train, test = train_test_split(data, test_size=0.2, random_state=42)
+    X, W = get_input_matrix(train)
+    W_test = get_test_mask(test)
+
+    weightings = ['normal', None]
+    numbers_nn = [30, 10000] #10000 means taking all the neighbors which are positive
+
+    for weighting in weightings:
+        for k in numbers_nn:
+            print('Weighting: ' + str(weighting) + ', Neighbors: ' + str(k))
+
+            model = SimilarityMethods(0, N_USERS, N_MOVIES, similarity_measure="PCC", weighting=weighting, method="item", k=k, signifiance_threshold=None)
+            model.fit(X, None, W, log_rmse=False)
+            predictions = model.predict(W_test, invert_norm=False)
+
+            # Extract the predictions into one array
+            test_predictions = []
+            for row in test:
+                test_predictions.append(predictions[row[0]][row[1]])
+            
+            np.savetxt('log/ensemble/sim_preds_w_' + str(weighting) + '_n_' + str(k) + '.csv', test_predictions, header='Prediction', comments='')
 
 def experiments_on_ensemble_als(data):
     train, test = train_test_split(data, test_size=0.2, random_state=42)
