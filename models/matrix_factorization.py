@@ -764,7 +764,7 @@ class BFM(BaseModel):
         self.with_ii = with_ii
 
         
-    def fit(self, X, y, W, data, test_size = 0, iter = 500):
+    def fit(self, X, y, W, test_size = 0, iter = 500):
         """
         Fit the decomposing matrix U and V using ALS optimization algorithm.
         Parameters        
@@ -786,11 +786,11 @@ class BFM(BaseModel):
         self.iter = iter
 
         if test_size > 0.001:
-            train, test = train_test_split(data, test_size=test_size, random_state=self.random_state)
+            train, test = train_test_split(X, test_size=test_size, random_state=self.random_state)
             X_test = test[:, :2]
             y_test = test[:, 2]
         else:
-            train = data
+            train = X
 
         X_train = train[:, :2]
         y_train = train[:, 2]

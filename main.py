@@ -26,12 +26,12 @@ def main():
     # Similarity
     # experiments_on_similarity(X, W)
     # BFM
-    # experiments_on_bfm_rank(X, W, data)
-    # experiments_on_bfm_iterations(X, W, data)
-    # experiments_on_bfm_options_by_rank(X, W, data)
-    # experiments_on_bfm_options_by_iters(X, W, data)
+    # experiments_on_bfm_rank(data)
+    # experiments_on_bfm_iterations(data)
+    # experiments_on_bfm_options_by_rank(data)
+    # experiments_on_bfm_options_by_iters(data)
     # Get BFM predictions to experiment with ensemble weighting
-    # experiments_on_ensemble_bfm(X, W, data)
+    # experiments_on_ensemble_bfm(data)
     # Get ALS predictions to experiment with ensemble weighting
     # experiments_on_ensemble_als(data)
     # Get similarity predictions to experiment with ensemble weighting
@@ -45,7 +45,7 @@ def train_and_run_on_submission_data(X, W, data):
     W_test = get_test_mask(X_test)
     # BFM predictions
     bfm_model = BFM(50, N_USERS, N_MOVIES, 50, verbose=1, with_ord=True, with_iu=True, with_ii=True)
-    bfm_model.fit(X, None, W, data, iter=500)
+    bfm_model.fit(data, None, None, iter=500)
     bfm_preds = bfm_model.predict(X_test)
     # Similarity predictions
     sim_model = SimilarityMethods(0, N_USERS, N_MOVIES, similarity_measure="PCC", weighting='normal', method="item", k=30, signifiance_threshold=None)
@@ -99,15 +99,17 @@ def experiments_on_als_rank(X, W):
     for k in [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25]:
         print(f"Rank {k}...")
         model = ALS(k, N_USERS, N_MOVIES, k, verbose=1)
-        model.fit(X, None, W, epochs=20, test_size=0.2, )
+        model.fit(X, None, W, epochs=20, test_size=0.2)
         model.log_model_info()
 
-def experiments_on_bfm_rank(X, W, data):
+
+def experiments_on_bfm_rank(data):
     ranks = range(1, 50, 1)
     for k in ranks:
         model = BFM(k, N_USERS, N_MOVIES, k, verbose=1, with_ord=True, with_ii=True, with_iu=True)
-        model.fit(X, None, W, data, test_size=0.2, iter=500)
+        model.fit(data, None, None, test_size=0.2, iter=500)
         model.log_model_info()
+
 
 def experiments_on_similarity(X, W):
     
@@ -134,14 +136,16 @@ def experiments_on_similarity(X, W):
                         user_similarity, item_similarity = model.get_similarity_matrices()
                         id += 1
 
-def experiments_on_bfm_iterations(X, W, data):
+
+def experiments_on_bfm_iterations(data):
     iterations = range(1, 202, 50) + range(251, 1002, 100)
     for i in iterations:
         model = BFM(i, N_USERS, N_MOVIES, 25, verbose=1, with_ord=True, with_ii=True, with_iu=True)
-        model.fit(X, None, W, data, test_size=0.2, iter=i)
+        model.fit(data, None, None, test_size=0.2, iter=i)
         model.log_model_info(path='./log/log_BFM_iters/')
 
-def experiments_on_bfm_options_by_rank(X, W, data):
+
+def experiments_on_bfm_options_by_rank(data):
     ranks = [1] + list(range(10, 51, 10))
     for i in ranks:
         print('Rank: ' + str(i))
@@ -155,10 +159,11 @@ def experiments_on_bfm_options_by_rank(X, W, data):
                    [True, True, True]]
         for j in pattern:
             model = BFM(i, N_USERS, N_MOVIES, i, verbose=1, with_ord=j[0], with_iu=j[1], with_ii=j[2])
-            model.fit(X, None, W, data, test_size=0.2, iter=250)
+            model.fit(data, None, None, test_size=0.2, iter=250)
             model.log_model_info(path='./log/log_BFM_options_rank/', options_in_name=True)
 
-def experiments_on_bfm_options_by_iters(X, W, data):
+
+def experiments_on_bfm_options_by_iters(data):
     iters = [1] + list(range(100, 501, 100))
     for i in iters:
         print('Iters: ' + str(i))
@@ -172,19 +177,22 @@ def experiments_on_bfm_options_by_iters(X, W, data):
                    [True, True, True]]
         for j in pattern:
             model = BFM(i, N_USERS, N_MOVIES, 25, verbose=1, with_ord=j[0], with_iu=j[1], with_ii=j[2])
-            model.fit(X, None, W, data, test_size=0.2, iter=i)
+            model.fit(data, None, None, test_size=0.2, iter=i)
             model.log_model_info(path='./log/log_BFM_options_iters/', options_in_name=True)
 
-def experiments_on_ensemble_bfm(X, W, data):
+
+def experiments_on_ensemble_bfm(data):
     train, test = train_test_split(data, test_size=0.2, random_state=42)
     model = BFM(50, N_USERS, N_MOVIES, 50, verbose=1, with_ord=True, with_iu=True, with_ii=True)
-    model.fit(X, None, W, train, iter=500)
+    model.fit(train, None, None, iter=500)
 
     X_test = test[:, :2]
     test_predictions = model.predict(X_test)
 
     np.savetxt('log/ensemble/bfm_preds.csv', test_predictions, header='Prediction', comments='')
+    # Also save true values of predictions for test set
     np.savetxt('log/ensemble/test_true.csv', test[:, 2], header='Prediction', comments='')
+
 
 def experiments_on_ensemble_similarity(data):
     train, test = train_test_split(data, test_size=0.2, random_state=42)
@@ -208,6 +216,18 @@ def experiments_on_ensemble_similarity(data):
                 test_predictions.append(predictions[row[0]][row[1]])
             
             np.savetxt('log/ensemble/sim_preds_w_' + str(weighting) + '_n_' + str(k) + '.csv', test_predictions, header='Prediction', comments='')
+
+    model = SimilarityMethods(0, N_USERS, N_MOVIES, similarity_measure="PCC", weighting='normal', method="both", use_std=True, k=30, user_weight=0.06, signifiance_threshold=None)
+    model.fit(X, None, W, log_rmse=False)
+    predictions = model.predict(W_test, invert_norm=False)
+
+    # Extract the predictions into one array
+    test_predictions = []
+    for row in test:
+        test_predictions.append(predictions[row[0]][row[1]])
+    
+    np.savetxt('log/ensemble/sim_preds_w_normal_n_30_improved.csv', test_predictions, header='Prediction', comments='')
+
 
 def experiments_on_ensemble_als(data):
     train, test = train_test_split(data, test_size=0.2, random_state=42)

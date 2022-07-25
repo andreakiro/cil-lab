@@ -19,18 +19,38 @@ def generate_ensemble_weights_plot():
           'none_30' : pd.read_csv('log/ensemble/sim_preds_w_none_n_30.csv')['Prediction'],
           'none_10000' : pd.read_csv('log/ensemble/sim_preds_w_none_n_10000.csv')['Prediction'],
           'normal_30' : pd.read_csv('log/ensemble/sim_preds_w_normal_n_30.csv')['Prediction'],
-          'normal_10000' : pd.read_csv('log/ensemble/sim_preds_w_normal_n_10000.csv')['Prediction']
+          'normal_10000' : pd.read_csv('log/ensemble/sim_preds_w_normal_n_10000.csv')['Prediction'],
+          'normal_30_improved' : pd.read_csv('log/ensemble/sim_preds_w_normal_n_30_improved.csv')['Prediction']
      }
 
      sim_options_to_label = {
           'none_30' : 'no weighting, 30 neighbors',
           'none_10000' : 'no weighting, all neighbors',
           'normal_30' : ' normal weighting, 30 neighbors',
-          'normal_10000' : 'normal_weighting, all neighbors'
+          'normal_10000' : 'normal weighting, all neighbors',
+          'normal_30_improved' : 'normal weighting, 30 neighbors (improved)'
      }
 
      # Best RMSE: 0.9697030734079068
      # 100*BFM + 19*Sim
+
+     val_by_weight = {}
+     for model_description, pred in sim_preds.items():
+          for i in range(0, 50, 1):
+               weights = {'bfm': 100, 'sim': i}
+
+               weighted_preds = (np.array(bfm_preds) * weights['bfm'] + np.array(pred) * weights['sim']) / sum(weights.values())
+               rmse = ((np.array(test) - np.array(weighted_preds)) ** 2).mean() ** .5
+               val_by_weight[i] = rmse
+
+          lists = sorted(val_by_weight.items())
+          x, y = zip(*lists)
+          plt.plot(x, y, label = sim_options_to_label[model_description])
+     plt.ylabel('Validation RMSE', fontsize = 12)
+     plt.xlabel('Similarity weight (BFM having weight 100)', fontsize = 12)
+     plt.legend()
+     plt.savefig("./plots/BFM_Sim_weights.png")
+     plt.cla()
 
      for i in range(40):
           weights = {'bfm': 100, 'sim': i}
@@ -52,23 +72,6 @@ def generate_ensemble_weights_plot():
      plt.savefig("./plots/BFM_Sim_ALS_weights.png")
      plt.cla()
 
-     val_by_weight = {}
-     for model_description, pred in sim_preds.items():
-          for i in range(0, 50, 1):
-               weights = {'bfm': 100, 'sim': i}
-
-               weighted_preds = (np.array(bfm_preds) * weights['bfm'] + np.array(pred) * weights['sim']) / sum(weights.values())
-               rmse = ((np.array(test) - np.array(weighted_preds)) ** 2).mean() ** .5
-               val_by_weight[i] = rmse
-
-          lists = sorted(val_by_weight.items())
-          x, y = zip(*lists)
-          plt.plot(x, y, label = 'Validation error')
-          plt.ylabel('Validation RMSE', fontsize = 12)
-          plt.xlabel('Similarity weight (BFM having weight 100)', fontsize = 12)
-          plt.legend()
-          plt.savefig("./plots/BFM_Sim_" + model_description + "_weights.png")
-          plt.cla()
 
 def generate_rank_experiments_plot():
      val_svd = []
