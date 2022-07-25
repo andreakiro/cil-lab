@@ -54,6 +54,13 @@ def get_input_matrix(data):
     return X, W
 
 
+def get_preds_from_matrix(data, matrix):
+    sim_preds = []
+    for row in data:
+        sim_preds.append(matrix[row[0]][row[1]])
+    return sim_preds
+
+
 def generate_submission(predictions, submission_data_path, name="submission.zip", compression="zip", matrix_predictions=False):
     '''
     Generate CSV or zip file for submission

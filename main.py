@@ -51,10 +51,8 @@ def train_and_run_on_submission_data(X, W, data):
     sim_model = SimilarityMethods(0, N_USERS, N_MOVIES, similarity_measure="PCC", weighting='normal', method="item", k=30, signifiance_threshold=None)
     sim_model.fit(X, None, W, log_rmse=False)
     sim_preds_matrix = sim_model.predict(W_test, invert_norm=False)
-    # Extract the similarity predictions into a 1D array
-    sim_preds = []
-    for row in X_test:
-        sim_preds.append(sim_preds_matrix[row[0]][row[1]])
+    sim_preds = get_preds_from_matrix(X_test, sim_preds_matrix)
+    # Ensemble
     weights = {'bfm': 100, 'sim': 19}
     ensemble_preds = (np.array(bfm_preds) * weights['bfm'] + np.array(sim_preds) * weights['sim']) / sum(weights.values())
     # Write results to file, ready for Kaggle
