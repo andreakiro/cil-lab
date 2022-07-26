@@ -36,8 +36,10 @@ def main():
     # experiments_on_ensemble_als(data)
     # Get similarity predictions to experiment with ensemble weighting
     # experiments_on_ensemble_similarity(data)
+    # Get predictions from funkSVD for ensembling
+    experiments_on_ensemble_funksvd(data)
     # Predict Kaggle data
-    train_and_run_on_submission_data(X, W, data)
+    # train_and_run_on_submission_data(X, W, data)
 
 
 def train_and_run_on_submission_data(X, W, data):
@@ -241,6 +243,21 @@ def experiments_on_ensemble_als(data):
         test_predictions.append(predictions[row[0]][row[1]])
 
     np.savetxt('log/ensemble/als_preds.csv', test_predictions, header='Prediction', comments='')
+
+def experiments_on_ensemble_funksvd(data):
+    train, test = train_test_split(data, test_size=0.2, random_state=42)
+    X, W = get_input_matrix(train)
+
+    model = FunkSVD(0, N_USERS, N_MOVIES, 3, )
+    model.fit(X, None, W, )
+    predictions = model.predict(None)
+
+    # Extract the predictions into one array
+    test_predictions = []
+    for row in test:
+        test_predictions.append(predictions[row[0]][row[1]])
+
+    np.savetxt('log/ensemble/funk_preds.csv', test_predictions, header='Prediction', comments='')
     
 if __name__ == '__main__':
     main()
