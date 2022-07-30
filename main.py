@@ -25,6 +25,8 @@ def main():
     experiments_on_funk_rank(X, W)
     # Similarity
     # experiments_on_similarity(X, W)
+    # experiments_on_similarity_nn(X, W)
+    # experiments_on_similarity_user_weight(X, W)
     # BFM
     # experiments_on_bfm_rank(data)
     # experiments_on_bfm_iterations(data)
@@ -133,8 +135,30 @@ def experiments_on_similarity(X, W):
                         model = SimilarityMethods(id, N_USERS, N_MOVIES, similarity_measure=similarity_measure, weighting=weighting, method=method, k=k, signifiance_threshold=signifiance_threshold)
                         model.fit(X, None, W, 0.2)
                         model.log_model_info()
-                        user_similarity, item_similarity = model.get_similarity_matrices()
                         id += 1
+    
+    print(f"Train model number {id}")
+    model = ComprehensiveSimilarityReinforcement(id, N_USERS, N_MOVIES, sample_size=15, max_iter=15, verbose=1)
+    model.fit(X, None, W, 0.2)
+    model.log_model_info()
+
+def experiments_on_similarity_nn(X, W):
+    id = 163
+    for k in [20, 25, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100, 200]:
+        print(f"Starting model {id}: number neighbors = {k}")
+        model = SimilarityMethods(id, N_USERS, N_MOVIES, similarity_measure="PCC", weighting="normal", method="item", k=k, verbose=1)
+        model.fit(X, None, W, 0.2)
+        model.log_model_info()
+        id += 1
+
+def experiments_on_similarity_user_weight(X, W):
+    id = 176
+    for user_weight in [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5]:
+        print(f"Starting model {id}: user_weight = {user_weight}")
+        model = SimilarityMethods(id, N_USERS, N_MOVIES, similarity_measure="PCC", weighting="normal", method="both", k=30, user_weight=user_weight, verbose=1)
+        model.fit(X, None, W, 0.2)
+        model.log_model_info()
+        id += 1
 
 
 def experiments_on_bfm_iterations(data):
