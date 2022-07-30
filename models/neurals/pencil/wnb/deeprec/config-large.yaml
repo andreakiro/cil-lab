@@ -1,0 +1,61 @@
+# Wa&B Sweep
+project: cil-lab
+program: main.py
+method: random
+
+metric:
+  name: val_RMSE
+  goal: minimize
+
+parameters:
+  # model architecture
+  major:
+    value: users
+  activation:
+    values: [
+      selu,
+      relu,
+      relu6,
+      sigmoid,
+      tanh,
+      elu,
+      lrelu,
+      swish,
+    ]
+  layer1_dim:
+    values: [32, 64, 128, 256, 512, 1024]
+  layer2_dim:
+    values: [32, 64, 128, 256, 512, 1024]
+  layer3_dim:
+    values: [32, 64, 128, 256, 512, 1024]
+
+  # training hyperparams
+  epochs:
+    value: 20
+  optimizer:
+    values: [
+      adam,
+      adagrad,
+      momentum,
+      rmsprop,
+    ]
+  learning_rate:
+    distribution: uniform
+    min: 0.00
+    max: 0.02
+  batch_size:
+    values: [32, 64, 128, 256]
+
+  # regularization params
+  weight_decay:
+    distribution: uniform
+    min: 0.000
+    max: 0.001
+  dropout:
+    distribution: uniform
+    min: 0
+    max: 1
+  noise_prob:
+    value: 0
+  dense_refeeding_steps:
+    value: 2
