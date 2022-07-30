@@ -22,7 +22,7 @@ def main():
     # SVD
     # experiments_on_svd_rank(X, W)
     # ALS
-    # experiments_on_als_rank(X, W)
+    experiments_on_funk_rank(X, W)
     # Similarity
     # experiments_on_similarity(X, W)
     # BFM
@@ -37,7 +37,7 @@ def main():
     # Get similarity predictions to experiment with ensemble weighting
     # experiments_on_ensemble_similarity(data)
     # Get predictions from funkSVD for ensembling
-    experiments_on_ensemble_funksvd(data)
+    # experiments_on_ensemble_funksvd(data)
     # Predict Kaggle data
     # train_and_run_on_submission_data(X, W, data)
 
@@ -70,7 +70,7 @@ def experiments_on_funk_rank(X, W):
     for k in range(2, 30, 1):
         print(f"Rank {k}...")
         model = FunkSVD(i, N_USERS, N_MOVIES, k)
-        model.fit(X, None, W, 0.2, n_epochs=5000)
+        model.fit(X, None, W, 0.2, n_epochs=100)
         model.log_model_info()
         i += 1
 
@@ -195,29 +195,13 @@ def experiments_on_ensemble_bfm(data):
 
 
 def experiments_on_ensemble_similarity(data):
-    train, test = train_test_split(data, test_size=0.2, random_state=42)
-    X, W = get_input_matrix(train)
+    X, W = get_input_matrix(data)
+    test = load_submission_data(SUBMISSION_DATA_PATH)
     W_test = get_test_mask(test)
 
-    weightings = ['normal', None]
-    numbers_nn = [30, 10000] #10000 means taking all the neighbors which are positive
-
-    for weighting in weightings:
-        for k in numbers_nn:
-            print('Weighting: ' + str(weighting) + ', Neighbors: ' + str(k))
-
-            model = SimilarityMethods(0, N_USERS, N_MOVIES, similarity_measure="PCC", weighting=weighting, method="item", k=k, signifiance_threshold=None)
-            model.fit(X, None, W, log_rmse=False)
-            predictions = model.predict(W_test, invert_norm=False)
-
-            # Extract the predictions into one array
-            test_predictions = []
-            for row in test:
-                test_predictions.append(predictions[row[0]][row[1]])
-            
-            np.savetxt('log/ensemble/sim_preds_w_' + str(weighting) + '_n_' + str(k) + '.csv', test_predictions, header='Prediction', comments='')
-
-    model = SimilarityMethods(0, N_USERS, N_MOVIES, similarity_measure="PCC", weighting='normal', method="both", use_std=True, k=30, user_weight=0.06, signifiance_threshold=None)
+    model = SimilarityMethods(0, N_USERS, N_MOVIES, similarity_measure="PCC", weighting=None, method="item", use_std=False, k=10000)
+    # model = SimilarityMethods(0, N_USERS, N_MOVIES, similarity_measure="cosine", weighting="normal", method="both", use_std=False, k=30, user_weight=0.5, signifiance_threshold=None)
+    
     model.fit(X, None, W, log_rmse=False)
     predictions = model.predict(W_test, invert_norm=False)
 
@@ -226,8 +210,8 @@ def experiments_on_ensemble_similarity(data):
     for row in test:
         test_predictions.append(predictions[row[0]][row[1]])
     
-    np.savetxt('log/ensemble/sim_preds_w_normal_n_30_improved.csv', test_predictions, header='Prediction', comments='')
-
+    np.savetxt('log/ensemble_test/sim_preds_w_none_n_10000.csv', test_predictions, header='Prediction', comments='')
+    # np.savetxt('log/ensemble/sim_cosine.csv', test_predictions, header='Prediction', comments='')
 
 def experiments_on_ensemble_als(data):
     train, test = train_test_split(data, test_size=0.2, random_state=42)
@@ -245,10 +229,10 @@ def experiments_on_ensemble_als(data):
     np.savetxt('log/ensemble/als_preds.csv', test_predictions, header='Prediction', comments='')
 
 def experiments_on_ensemble_funksvd(data):
-    train, test = train_test_split(data, test_size=0.2, random_state=42)
+    train, test = train_test_split(data, test_size=0.2, random_state=42, )
     X, W = get_input_matrix(train)
 
-    model = FunkSVD(0, N_USERS, N_MOVIES, 3, )
+    model = FunkSVD(0, N_USERS, N_MOVIES, 3,)
     model.fit(X, None, W, )
     predictions = model.predict(None)
 
