@@ -5,6 +5,10 @@ import random
 import sys
 import os
 from math import floor
+import pandas as pd
+from src.configs import config
+from sklearn.model_selection import train_test_split
+import numpy as np
 
 def print_stats(data):
     total_ratings = 0
@@ -38,6 +42,66 @@ def convert2CILdictionary(dictionary):
     for item in newdictionary:
         newdictionary[item] = sorted(newdictionary[item])
     return dict(sorted(newdictionary.items()))
+
+def extract_users_items_predictions(data_df):
+    reg = r"r(\d+)_c(\d+)" # parses a row of the "Id" column
+
+    users, movies = [
+        np.squeeze(arr)
+        for arr in np.split(
+            data_df.Id.str.extract(reg).values.astype(int), 2, axis=-1
+            # data_df.Id.str.extract(reg).values.astype(int) - 1, 2, axis=-1
+        )
+    ]
+
+    ratings = data_df.Prediction.values
+    return users, movies, ratings
+
+def preprocess_deeprec():
+    # get raw data
+    raw_data = pd.read_csv("../../../data/data_train.csv") # TODO
+    umber_of_users, number_of_movies = config.USERS, config.MOVIES
+    os.makedirs(config.lightgcn.DATA_DIR, exist_ok=True)
+
+    print(config.TRAIN_SIZE)
+    print(config.RANDOM_SEED)
+
+    # split dataset into train and val
+    train_size = config.TRAIN_SIZE
+    train_pd, val_pd = train_test_split(
+        raw_data,
+        train_size=train_size,
+        random_state=config.RANDOM_SEED
+    )
+
+    # compute mean of respective datasets
+    mean_train = np.mean(train_pd.Prediction.values)
+    mean_val = np.mean(val_pd.Prediction.values)
+
+    # extract (users, movies, ratings) from datasets
+    train_users, train_movies, train_ratings = extract_users_items_predictions(train_pd)
+    val_users, val_movies, val_ratings = extract_users_items_predictions(val_pd)
+
+    # define and save train dataframe
+    column_names = ["user", "movie", "rating"]
+    train_dataset = np.column_stack((train_users, train_movies, train_ratings))
+    train_df = pd.DataFrame(data=train_dataset)
+    train_df.columns = column_names
+    train_df.to_csv(config.TRAIN_DATA, index=False)
+
+    # define and save val dataframe
+    val_dataset = np.column_stack((val_users, val_movies, val_ratings))
+    val_df = pd.DataFrame(data=val_dataset)
+    val_df.columns = column_names
+    val_df.to_csv(config.EVAL_DATA, index=False)
+
+    # create and save submission data
+    sub_pd = pd.read_csv("../../../data/sampleSubmission.csv") # TODO
+    sub_users, sub_movies, sub_ratings = extract_users_items_predictions(sub_pd)
+    sub_dataset = np.column_stack((sub_users, sub_movies, sub_ratings))
+    sub_df = pd.DataFrame(data=sub_dataset)
+    sub_df.columns = column_names
+    sub_df.to_csv(config.TEST_DATA, index=False)
 
 def main(args):
     inpt = args[1]
@@ -134,4 +198,4 @@ def main(args):
         print("Invalid arguments:", args[2])
 
 if __name__ == "__main__":
-    main(sys.argv)
+    preprocess_deeprec()

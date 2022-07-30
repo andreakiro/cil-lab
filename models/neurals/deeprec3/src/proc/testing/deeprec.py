@@ -1,5 +1,5 @@
 from src.data.converter import convert2CILdictionary
-import src.data.layers as L
+import src.data.dataloader as L
 import src.models.deeprec as deeprec
 import numpy as np
 import copy
@@ -20,13 +20,16 @@ def eval(args, params, cuda):
     # loads evaluation (sub) data
     print("Loading submission data")
     eval_params = copy.deepcopy(params)
-    eval_params["data_file"] = args.path_to_eval_data
+    eval_params["data_file"] = args.path_to_test_data
     eval_data_layer = L.UserItemRecDataProvider(
       params=eval_params,
       user_id_map=data_layer.userIdMap,  # the mappings are provided
       item_id_map=data_layer.itemIdMap,
     )
     eval_data_layer.src_data = data_layer.data
+
+    print("Total submission items found: {}".format(len(eval_data_layer.data.keys())))
+    print("Vector dim: {}".format(eval_data_layer.vector_dim))
 
     # define layers
     layer_sizes = (
@@ -60,7 +63,7 @@ def eval(args, params, cuda):
 
     preds = dict()
 
-    for _, ((out, src), majorInd) in enumerate(eval_data_layer.iterate_one_epoch_eval(for_inf=True)):
+    for i, ((out, src), majorInd) in enumerate(eval_data_layer.iterate_one_epoch_eval(for_inf=True)):
         inputs = Variable(src.cuda().to_dense() if cuda else src.to_dense())
         targets_np = out.to_dense().numpy()[0, :]
         outputs = autoenc(inputs).cpu().data.numpy()[0, :]
@@ -69,6 +72,8 @@ def eval(args, params, cuda):
         preds[major_key] = []
         for ind in non_zeros:
             preds[major_key].append((inv_itemIdMap[ind], outputs[ind]))
+        if i % 1000 == 0:
+            print("Done: {} predictions".format(i))
 
     preds = convert2CILdictionary(preds)
 

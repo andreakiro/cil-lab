@@ -16,10 +16,12 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import MultiStepLR
 
-import src.data.layers as L
+import src.data.dataloader as L
 import src.models.deeprec as deeprec
+from src.configs import config
 
 import wandb as wandb
+import pickle
 
 #######################################
 ############### HELPERS ###############
@@ -65,7 +67,7 @@ def print_details_layers(dl):
   print('Vector dim: {}'.format(dl.vector_dim))
 
 def evaluate(encoder, evaluation_data_layer, cuda):
-  with torch.no_grad:
+  with torch.no_grad():
     # evaluate the encoder
     encoder.eval()
     denom = 0.0
@@ -92,7 +94,7 @@ def train(args, config, params, cuda):
     config = config,
     job_type = 'model-train',
     resume = 'auto',
-    mode='online'
+    mode='offline'
   )
 
   # define run name of experiment
@@ -185,6 +187,7 @@ def train(args, config, params, cuda):
   autoenc.train()
 
   # starts training the model
+  logs = dict()
   print('Starting training for {} epochs'.format(args.epochs))
   for epoch in range(int(args.epochs)):
     #print('Doing epoch {} of {}'.format(epoch, args.epochs))
@@ -223,6 +226,7 @@ def train(args, config, params, cuda):
     wandb.log({'train_RMSE': sqrt(total_epoch_loss / denom), 'epoch': epoch})
     print('Epoch {} finished in {:.2f} seconds'.format(epoch, e_end_time - e_start_time))
     print('\tTRAINING RMSE loss: {:.2f}'.format(sqrt(total_epoch_loss / denom)))
+    logs[epoch + 1] = {'train_loss': total_epoch_loss / denom}
 
     # early termination
     if np.isnan(sqrt(total_epoch_loss / denom)):
@@ -235,12 +239,16 @@ def train(args, config, params, cuda):
         eval_loss = evaluate(autoenc, eval_data_layer, cuda)
         wandb.log({'val_RMSE': eval_loss, 'epoch': epoch})
         print('\tEVALUATION RMSE loss: {:.2f}'.format(eval_loss))
-      autoenc.train()
+        logs[epoch + 1]['eval_loss'] = eval_loss
+        autoenc.train()
 
     # save checkpoint
     if epoch in chkpts:
       version = 'epoch_' + str(epoch) + '.model'
       torch.save(autoenc.state_dict(), Path(model_checkpoints, version))
+
+  with open(config.LOG_FILE.format(rname=model_output, epochs=args.epochs), 'wb') as handle:
+      pickle.dump(logs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
   # save std model
   print('Saving model to {}'.format(Path(model_output, 'last.model')))

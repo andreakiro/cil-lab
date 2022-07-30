@@ -1,25 +1,23 @@
-# Copyright (c) 2017 NVIDIA Corporation
-#######################################
+# Custom DataLoader for DeepRec NVIDIA model
+# Dataset of (user_index, item_index, rating)
+# Adapted from github.com/NVIDIA/DeepRecommender
+################################################
 
-from os import listdir, path
-from random import shuffle
 import torch
+import random
+
+from src.configs import config
+random.seed(config.RANDOM_SEED)
 
 #######################################
-######### DATA LAYER CLASSES ##########
+######### DATA LOADER DEEPREC #########
 #######################################
 
 class UserItemRecDataProvider:
 
-    def __init__(
-        self,
-        params,
-        user_id_map = None,
-        item_id_map = None
-    ):
+    def __init__(self, params, user_id_map = None, item_id_map = None):
         self._params = params
-        #self._data_dir = self.params["data_dir"]
-        self._data_file = [self.params["data_file"]]
+        self._data_file = self.params["data_file"]
         self._extension = ("" if "extension" not in self.params else self.params["extension"])
         self._i_id = 0 if "itemIdInd" not in self.params else self.params["itemIdInd"]
         self._u_id = 1 if "userIdInd" not in self.params else self.params["userIdInd"]
@@ -30,7 +28,7 @@ class UserItemRecDataProvider:
 
         self._major_ind = self._i_id if self._major == "items" else self._u_id
         self._minor_ind = self._u_id if self._major == "items" else self._i_id
-        self._delimiter = ("\t" if "delimiter" not in self.params else self.params["delimiter"])
+        self._delimiter = ("," if "delimiter" not in self.params else self.params["delimiter"])
 
         if user_id_map is None or item_id_map is None:
             self._build_maps()
@@ -42,62 +40,48 @@ class UserItemRecDataProvider:
         minor_map = self._user_id_map if self._major == "items" else self._item_id_map
         self._vector_dim = len(minor_map)
 
-        # src_files = [
-        #     path.join(self._data_dir, f)
-        #     for f in listdir(self._data_dir)
-        #     if path.isfile(path.join(self._data_dir, f)) and f.endswith(self._extension)
-        # ]
-
         self._batch_size = self.params["batch_size"]
 
         self.data = dict()
 
-        for source_file in self._data_file:
-            with open(source_file, "r") as src:
-                for line in src.readlines():
-                    parts = line.strip().split(self._delimiter)
-                    if len(parts) < 3:
-                        raise ValueError("Encountered badly formatted line in {}".format(source_file))
-                    key = major_map[int(parts[self._major_ind])]
-                    value = minor_map[int(parts[self._minor_ind])]
-                    rating = float(parts[self._r_id])
-                    if key not in self.data:
-                        self.data[key] = []
-                    self.data[key].append((value, rating))
+        with open(self._data_file, "r") as src:
+            for line in src.readlines()[1:]:
+                parts = line.strip().split(self._delimiter)
+                if len(parts) < 3:
+                    raise ValueError("Encountered badly formatted line in {}".format(self._data_file))
+                key = major_map[int(parts[self._major_ind])]
+                value = minor_map[int(parts[self._minor_ind])]
+                rating = float(parts[self._r_id])
+                if key not in self.data:
+                    self.data[key] = []
+                self.data[key].append((value, rating))
 
     def _build_maps(self):
         self._user_id_map = dict()
         self._item_id_map = dict()
 
-        # src_files = [
-        #     path.join(self._data_dir, f)
-        #     for f in listdir(self._data_dir)
-        #     if path.isfile(path.join(self._data_dir, f)) and f.endswith(self._extension)
-        # ]
-
         u_id = 0
         i_id = 0
-        for source_file in self._data_file:
-            with open(source_file, "r") as src:
-                for line in src.readlines():
-                    parts = line.strip().split(self._delimiter)
-                    if len(parts) < 3:
-                        raise ValueError("Encountered badly formatted line in {}".format(source_file))
+        with open(self._data_file, "r") as src:
+            for line in src.readlines()[1:]:
+                parts = line.strip().split(self._delimiter)
+                if len(parts) < 3:
+                    raise ValueError("Encountered badly formatted line in {}".format(self._data_file))
 
-                    u_id_orig = int(parts[self._u_id])
-                    if u_id_orig not in self._user_id_map:
-                        self._user_id_map[u_id_orig] = u_id
-                        u_id += 1
+                u_id_orig = int(parts[self._u_id])
+                if u_id_orig not in self._user_id_map:
+                    self._user_id_map[u_id_orig] = u_id
+                    u_id += 1
 
-                    i_id_orig = int(parts[self._i_id])
-                    if i_id_orig not in self._item_id_map:
-                        self._item_id_map[i_id_orig] = i_id
-                        i_id += 1
+                i_id_orig = int(parts[self._i_id])
+                if i_id_orig not in self._item_id_map:
+                    self._item_id_map[i_id_orig] = i_id
+                    i_id += 1
 
     def iterate_one_epoch(self):
         data = self.data
         keys = list(data.keys())
-        shuffle(keys)
+        random.shuffle(keys)
         s_ind = 0
         e_ind = self._batch_size
         while e_ind < len(keys):
