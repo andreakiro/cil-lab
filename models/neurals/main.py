@@ -55,6 +55,9 @@ def main():
     if args.mode == 'train' and os.path.exists(args.model_output):
         print(f'{args.model_output} already exists, please change name')
         return
+
+    # for arg in vars(args):
+    #     print(arg, getattr(args, arg))
     
     try:
         activate_wnb(args)

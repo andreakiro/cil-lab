@@ -1,7 +1,8 @@
-# Testing procedure for LightGCN model architeture
-# Adapted from github.com/gusye1234/LightGCN-PyTorch
-# Adapted from github.com/LucaMalagutti/CIL-ETHZ-2021
-#####################################################
+"""
+Testing procedure for LightGCN model architeture
+Adapted from github.com/gusye1234/LightGCN-PyTorch
+Adapted from github.com/LucaMalagutti/CIL-ETHZ-2021
+"""
 
 import os
 import torch
@@ -51,10 +52,8 @@ def generate_submission(args, sub_data, ratings):
         + sub_data['movie'].apply(lambda x: str(x + 1))
     )
     sub_data = sub_data[['Id', 'Prediction']]
-    # sub_data['Prediction'] = sub_data.apply(lambda r: np.clip(r['Prediction'], 1.0, 5.0), axis=1)
 
-    # sub_name = args.path_to_model.split('.')[0].replace('/', '-') + '.csv'
-    sub_name = config.SUB_FILE.format(args.model)
-    out_path = os.path.join(args.out_path, sub_name)
+    sub_name = config.SUB_FILE.format(model=args.model, rname=args.rname)
+    out_path = os.path.join(args.model_output, sub_name)
     sub_data.to_csv(out_path, float_format='%.5f', index=False)
     print(f'Saving submission file at {os.path.join(config.SUB_DIR, sub_name)}')

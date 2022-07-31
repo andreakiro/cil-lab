@@ -1,11 +1,11 @@
-# CIL Dataset and DataLoader PyTorch implementation
-# Dataset of (user_index, item_index, rating) tuples
-#####################################################
+"""
+LightGCN Dataset and Dataloader PyTorch implementation
+Adapted from github.com/LucaMalagutti/CIL-ETHZ-2021
+"""
 
 import torch
 import numpy as np
 import torch.utils.data as td
-from src.configs import config
 
 #######################################
 ######## DATA LOADER LILGHTGCN ########
@@ -14,7 +14,7 @@ from src.configs import config
 class DataLoaderLightGCN():
 
     def __init__(self, args, split='train', shuffle=True):
-        self.dataset = DatasetLightGCN(split)
+        self.dataset = DatasetLightGCN(args, split)
         self.len_set = len(self.dataset)
         self.dataloader = td.DataLoader(
             dataset=self.dataset,
@@ -37,25 +37,25 @@ class DataLoaderLightGCN():
 
 class DatasetLightGCN(td.Dataset):
 
-    def __init__(self, split='train'):
+    def __init__(self, args, split='train'):
         self.split = split
 
         self.train_df = np.loadtxt(
-            open(config.TRAIN_DATA, 'rb'),
+            open(args.path_to_train_data, 'rb'),
             delimiter=",",
             skiprows=1,
             dtype=np.float32,
         )
 
         self.eval_df = np.loadtxt(
-            open(config.EVAL_DATA, 'rb'),
+            open(args.path_to_eval_data, 'rb'),
             delimiter=",",
             skiprows=1,
             dtype=np.float32,
         )
 
         self.test_df = np.loadtxt(
-            open(config.TEST_DATA, 'rb'),
+            open(args.path_to_test_data, 'rb'),
             delimiter=",",
             skiprows=1,
             dtype=np.float32,

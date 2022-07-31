@@ -11,6 +11,10 @@ import src.loader.deeprec as L
 import src.models.deeprec as deeprec
 from src.helpers.io import *
 
+#######################################
+################ TEST #################
+#######################################
+
 def test_deeprec(args):
     train_data_layer, eval_data_layer = deeprec.load_data(
         args, 1, args.path_to_test_data) # batch size of 1 

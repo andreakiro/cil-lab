@@ -15,7 +15,6 @@ def fill_deeprec_ps(deeprec_ps):
     deeprec_ps.add_argument('--path_to_train_data', type=str, default='data/split-80-20/training.data', help='path to training data')
     deeprec_ps.add_argument('--path_to_eval_data', type=str, default='data/split-80-20/validation.data', help='path to evaluation data')
     deeprec_ps.add_argument('--path_to_test_data', type=str, default='data/split-80-20/testing.data', help='path to testing data')
-    deeprec_ps.add_argument('--logdir', type=str, default='logs', help='where to save model and write logs')
 
     # model architecture
     deeprec_ps.add_argument('--major', type=str, default='users', help='major of the model (users or items)')
@@ -64,8 +63,12 @@ def fill_lightgcn_ps(lightgcn_ps):
     # paths to data and logs
     lightgcn_ps.add_argument('--r_train_path', type=str, default=config.lightgcn.R_MATRIX_TRAIN, help='path to R matrix needed for training')
     lightgcn_ps.add_argument('--r_mask_train_path', type=str, default=config.lightgcn.R_MASK_TRAIN, help='path to R mask matrix needed for training')
+    lightgcn_ps.add_argument('--path_to_train_data', type=str, default='data/split-80-20/training.data', help='path to training data')
+    lightgcn_ps.add_argument('--path_to_eval_data', type=str, default='data/split-80-20/validation.data', help='path to evaluation data')
+    lightgcn_ps.add_argument('--path_to_test_data', type=str, default='data/split-80-20/testing.data', help='path to testing data')
 
     # other parameters
+    lightgcn_ps.add_argument('--num_checkpoints', type=int, default=4, help='number of saved model checkpoints (including last)')
     lightgcn_ps.add_argument('--print_freq', type=int, default=50, help='frequency of training loss prints (batch-based)')
     lightgcn_ps.add_argument('--eval_freq', type=int, default=1, help='frequency of model evaluation (epoch-based)')
 

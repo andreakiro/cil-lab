@@ -1,7 +1,8 @@
-# PyTorch implementation of LightGCN neural model
-# Adapted from github.com/LucaMalagutti/CIL-ETHZ-2021
-# Original paper @ https://arxiv.org/pdf/2002.02126.pdf
-#######################################################
+"""
+LightGCN model PyTorch implementation
+Adapted from github.com/LucaMalagutti/CIL-ETHZ-2021
+Original paper @ https://arxiv.org/pdf/2002.02126.pdf
+"""
 
 import numpy as np
 import scipy.sparse as sp
@@ -107,8 +108,8 @@ class LightGCN(nn.Module):
         items_idx = batch[:, 1]
 
         # gets embeddings of users and items contained in the batch
-        batch_users_emb = users_emb[users_idx.long()]
-        batch_items_emb = items_emb[items_idx.long()]
+        batch_users_emb = users_emb[users_idx.long() - 1]
+        batch_items_emb = items_emb[items_idx.long() - 1]
 
         # predicts ratings for all the user-item pairs in the batch
         scores_matrix = batch_users_emb @ batch_items_emb.T
@@ -117,3 +118,11 @@ class LightGCN(nn.Module):
         scores = torch.diagonal(scores_matrix, 0)
 
         return scores
+
+#######################################
+############### HELPERS ###############
+#######################################
+
+def RMSEloss(yhat, y, eps=1e-6):
+    mse = nn.MSELoss()
+    return torch.sqrt(mse(yhat, y) + eps)

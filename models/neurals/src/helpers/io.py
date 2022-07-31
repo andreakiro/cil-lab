@@ -47,4 +47,4 @@ def save_submission(args, preds):
             for user, rating in preds[item]:
                 rating = np.clip(rating, 1.0, 5.0)
                 f.write('r{}_c{},{}\n'.format(user, item, rating))
-    print(f'Saving submission at {out_file}')
+    print(f'Saving submission file at {out_file}')
