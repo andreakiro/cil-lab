@@ -1,0 +1,11 @@
+# data folder
+**/data/
+
+# logs folder
+**/logs/
+
+# BIN model
+*.model
+
+# W&B folder
+**/wandb/
