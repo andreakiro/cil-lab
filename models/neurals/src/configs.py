@@ -15,13 +15,10 @@ config.RANDOM_SEED = 42
 config.TRAIN_SIZE = 0.80
 # full absolute: 1176951
 
-train_split = 'full' if config.TRAIN_SIZE > 1 else f'{int(config.TRAIN_SIZE*100)}-{100 - int(config.TRAIN_SIZE*100)}'
-
 # FILENAMES
 
 config.DATA_DIR = 'data'
 config.OUT_DIR = 'logs'
-config.SPLIT_DIR = Path(config.DATA_DIR, f'split-{train_split}')
 
 config.TRAIN_FILE = 'training.data'
 config.EVAL_FILE = 'validation.data'
@@ -29,10 +26,6 @@ config.TEST_FILE = 'testing.data'
 
 config.LOG_FILE = 'logs-losses-{epochs}.pickle'
 config.SUB_FILE = 'sub-{model}.csv'
-
-config.TRAIN_DATA = Path(config.SPLIT_DIR, config.TRAIN_FILE)
-config.EVAL_DATA = Path(config.SPLIT_DIR, config.EVAL_FILE)
-config.TEST_DATA = Path(config.SPLIT_DIR, config.TEST_FILE)
 
 # LIGHTGN
 

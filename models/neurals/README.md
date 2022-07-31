@@ -24,9 +24,9 @@ conda activate test-cil
 **Preprocess data to be consumed:**
 * This should create a new `./neurals/data` folder:
 * By default it creates a 80-20 training validation split
-* You can tune these values (and seed) in `src.configs.py`
+* You can tune these values (and seed) in `src.configs.py` or inline
 ```
-python preprocessing.py
+python preprocessing.py --model ${all, deeprec, lightgcn} --split $
 ```
 
 ## Reproduce the report results
