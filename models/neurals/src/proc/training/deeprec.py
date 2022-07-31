@@ -146,7 +146,6 @@ def train_deeprec(args):
   # prepare model checkpoints
   model_output = Path(args.logdir, run_name)
   model_checkpoints = Path(args.out_path, 'checkpoints')
-  os.makedirs(model_output, exist_ok=True)
   os.makedirs(model_checkpoints, exist_ok=True)
 
   # retrieve saved model

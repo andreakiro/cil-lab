@@ -84,7 +84,8 @@ def train_lightgcn(args):
         print(f'Epoch {i_epoch + 1:3} finished in {e_end_time - e_start_time:.2f} seconds')
 
     print(f'Finished all in {time.time() - st:.2f} seconds')
-    with open('logs.pickle', 'wb') as handle:
+    path_logs = Path(args.out_path, config.LOG_FILE.format(epochs=args.epochs))
+    with open(path_logs, 'wb') as handle:
         pickle.dump(logs, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 #######################################
