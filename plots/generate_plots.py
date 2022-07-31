@@ -147,11 +147,11 @@ def generate_rank_experiments_plot():
      # plt.savefig("./plots/BFM_ranks.png")
      # plt.cla()
 
-     plt.plot([t[0] for t in val_bfm], [t[1] for t in val_bfm],"-^", markersize=5, label = 'BFM', color="k")
-     plt.plot([t[0] for t in val_svd], [t[1] for t in val_svd],"-s", markersize=5, label = 'SVD' , color="k")#, markevery=[5])
+     plt.plot([t[0] for t in val_bfm], [t[1] for t in val_bfm],"-^", markersize=7, label = 'BFM', color="k")
+     plt.plot([t[0] for t in val_svd], [t[1] for t in val_svd],"-s", markersize=7, label = 'SVD' , color="k")#, markevery=[5])
      #plt.plot([t[0] for t in val_nmf], [t[1] for t in val_nmf], '-x', label = 'NMF', markevery=[9])
-     plt.plot([t[0] for t in val_als], [t[1] for t in val_als], '-o', markersize=5, label = 'ALS' ,  color="k" )#, markevery=[1])
-     plt.plot([t[0] for t in val_funk], [t[1] for t in val_funk],'-d', markersize=5, label = 'FunkSVD',  color="k")#, markevery=[0])
+     plt.plot([t[0] for t in val_als], [t[1] for t in val_als], '-o', markersize=7, label = 'ALS' ,  color="k" )#, markevery=[1])
+     plt.plot([t[0] for t in val_funk], [t[1] for t in val_funk],'-d', markersize=7, label = 'FunkSVD',  color="k")#, markevery=[0])
      
      # plt.annotate("r=7", (6.4, 1.01))
      # plt.annotate("r=11", (10.4, 1.01))
