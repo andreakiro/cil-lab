@@ -12,7 +12,7 @@ config.NUM_USERS = 10000
 config.NUM_MOVIES = 1000
 
 config.RANDOM_SEED = 42
-config.TRAIN_SIZE = 0.8
+config.TRAIN_SIZE = 0.80
 # full absolute: 1176951
 
 train_split = 'full' if config.TRAIN_SIZE > 1 else f'{int(config.TRAIN_SIZE*100)}-{100 - int(config.TRAIN_SIZE*100)}'

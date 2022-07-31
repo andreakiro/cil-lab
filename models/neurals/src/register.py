@@ -29,6 +29,6 @@ register.lightgcn.test = test_lightgcn
 # DATA REGISTER
 
 register.datapaths = edict()
-register.datapaths.cil = '../../../data/data_train.csv'
-register.datapaths.cil_sample = '../../../data/sampleSubmission.csv'
+register.datapaths.cil = '../../data/data_train.csv'
+register.datapaths.cil_sample = '../../data/sampleSubmission.csv'
 # PATH TO PROJECT MAIN DATA

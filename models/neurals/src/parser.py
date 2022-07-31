@@ -11,9 +11,9 @@ def fill_deeprec_ps(deeprec_ps):
     deeprec_ps.add_argument('--path_to_model', type=str, help='restoring model e.g. when testing')
 
     # paths to data and logs
-    deeprec_ps.add_argument('--path_to_train_data', type=str, default='data/training.data', help='path to training data')
-    deeprec_ps.add_argument('--path_to_eval_data', type=str, default='data/validation.data', help='path to evaluation data')
-    deeprec_ps.add_argument('--path_to_test_data', type=str, default='data/testing.data', help='path to testing data')
+    deeprec_ps.add_argument('--path_to_train_data', type=str, default='data/split-80-20/training.data', help='path to training data')
+    deeprec_ps.add_argument('--path_to_eval_data', type=str, default='data/split-80-20/validation.data', help='path to evaluation data')
+    deeprec_ps.add_argument('--path_to_test_data', type=str, default='data/split-80-20/testing.data', help='path to testing data')
     deeprec_ps.add_argument('--logdir', type=str, default='logs', help='where to save model and write logs')
 
     # model architecture
@@ -36,8 +36,8 @@ def fill_deeprec_ps(deeprec_ps):
     deeprec_ps.add_argument('--dense_refeeding_steps', type=int, default=2, help='freq. of data augmentation')
 
     # other parameters
-    deeprec_ps.add_argument('--constrained', type=bool, default=True, help='constraints definition on autoencoder')
-    deeprec_ps.add_argument('--skip_last_layer_nl', type=bool, default=True, help='application of non-linearity on last layer')
+    deeprec_ps.add_argument('--constrained', type=bool, default=False, help='constraints definition on autoencoder')
+    deeprec_ps.add_argument('--skip_last_layer_nl', type=bool, default=False, help='application of non-linearity on last layer')
     deeprec_ps.add_argument('--num_checkpoints', type=int, default=4, help='number of saved model checkpoints (including last)')
     deeprec_ps.add_argument('--evaluation_frequency', type=int, default=1, help='frequency (epoch-based) of model evaluation')
     deeprec_ps.add_argument('--summary_frequency', type=int, default=100, metavar='N', help='how often to save summaries')
