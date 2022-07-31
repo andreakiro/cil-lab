@@ -50,7 +50,7 @@ python main.py deeprec --mode train --rname richard
 * Testing (doing inference) of your cool model
 * **Very important: run `test` with same params as `train`!**
 ```
-python main.py deeprec --mode test --path_to_model logs/deeprec/richard/last.model
+python main.py deeprec --mode test --rname richard --path_to_model logs/deeprec/richard/last.model
 ```
 &rarr; You now have a submission in csv format: `./logs/deeprec/richard/sub-deeprec.csv`
 
@@ -64,7 +64,7 @@ python main.py lightgcn --mode train --rname buzz
 * Testing (doing inference) of your cool model
 * **Very important: run `test` with same params as `train`!**
 ```
-python main.py lightgcn --mode test --path_to_model logs/deeprec/buzz/last.model
+python main.py lightgcn --mode test --rname buzz --path_to_model logs/deeprec/buzz/last.model
 ```
 &rarr; You now have a submission in csv format: `./logs/lightgcn/buzz/sub-lightgcn.csv`
 
@@ -75,11 +75,3 @@ python main.py lightgcn --mode test --path_to_model logs/deeprec/buzz/last.model
 - xDeepFM (Deep factorization machines) [[Paper](https://arxiv.org/pdf/1803.05170.pdf)] [[Repo](https://github.com/Leavingseason/xDeepFM)]
 - NCF (Neural collaborative filtering) [[Paper](https://arxiv.org/pdf/1708.05031.pdf)] [[Repo](https://github.com/hexiangnan/neural_collaborative_filtering)]
 - KernelNet (Kernelized neural networks) [[Paper](http://proceedings.mlr.press/v80/muller18a.html)] [[Repo](https://github.com/lorenzMuller/kernelNet_MovieLens)]
-
-## ToDo left
-
-- Finish README
-- Finish paper
-- Mask code
-- Put experiments in paper
-- add requirements in machin
