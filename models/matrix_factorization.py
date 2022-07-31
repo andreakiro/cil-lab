@@ -736,7 +736,7 @@ class BFM(BaseModel):
     BFM model
     ---------
     
-    Train a dimensionality reduction model using a Bayesian Factorization Machine from the myfm library.
+    Train a dimensionality reduction model using a Bayesian Factorization Machine from the myFM library.
     
     Parameters
     ----------
@@ -753,15 +753,25 @@ class BFM(BaseModel):
         verbose level of the mode, 0 for no verbose, 1 for verbose
     random_state : int (optional)
         random seed for non-deterministic behaviours in the class
+    with_ord : bool (optional)
+        use ordered probit instead of regression for the predictions
+    with_iu : bool (optional)
+        add implicit user information (the list of movies that each user has rated)
+    with_ii : bool (optional)
+        add implicit item information (the list of users that have rated each movie)
+    grouping : bool (optional)
+        specify which parts of the input feature matrix should have the same distribution
+        generally does not improve the accuracy of the predictions
     """
 
-    def __init__(self, model_id, n_users, n_movies, k, verbose = 0, random_state=42, with_ord=False, with_iu=False, with_ii=False):
+    def __init__(self, model_id, n_users, n_movies, k, verbose = 0, random_state=42, with_ord=False, with_iu=False, with_ii=False, grouping=False):
         super().__init__(model_id = model_id, n_users=n_users, n_movies=n_movies, verbose = verbose, random_state=random_state)
         self.k = k
         self.model_name = "BFM"
         self.with_ord = with_ord
         self.with_iu = with_iu
         self.with_ii = with_ii
+        self.grouping = grouping
 
         
     def fit(self, X, y, W, test_size = 0, iter = 500):
@@ -785,6 +795,7 @@ class BFM(BaseModel):
         """
         self.iter = iter
 
+        # Not == 0.0 since float comparisons can be tricky
         if test_size > 0.001:
             train, test = train_test_split(X, test_size=test_size, random_state=self.random_state)
             X_test = test[:, :2]
@@ -795,12 +806,25 @@ class BFM(BaseModel):
         X_train = train[:, :2]
         y_train = train[:, 2]
 
-        # index "0" is reserved for unknown ids.
+        # index "0" is reserved for handling unknown ids without an error
         self.user_to_index = defaultdict(lambda : 0, { uid: i+1 for i,uid in enumerate(np.unique(X_train[:, 0])) })
         self.movie_to_index = defaultdict(lambda: 0, { mid: i+1 for i,mid in enumerate(np.unique(X_train[:, 1])) })
         self.USER_ID_SIZE = len(self.user_to_index) + 1
         self.MOVIE_ID_SIZE = len(self.movie_to_index) + 1
 
+        # setup grouping to specify which features have the same distribution
+        feature_group_sizes = None
+        if self.grouping:
+            feature_group_sizes = []
+            feature_group_sizes.append(self.USER_ID_SIZE) # user ids
+            if self.with_iu:
+                feature_group_sizes.append(self.MOVIE_ID_SIZE)
+            feature_group_sizes.append(self.MOVIE_ID_SIZE) # movie ids
+            if self.with_ii:
+                feature_group_sizes.append(self.USER_ID_SIZE) # all users who watched the movies)
+
+        # Setup lists of rated movies for every user, and users that have rated the movie for every movie
+        # For adding implicit information to the input feature matrix
         self.movie_vs_watched = dict()
         self.user_vs_watched = dict()
         for row in X_train:
@@ -809,11 +833,13 @@ class BFM(BaseModel):
             self.movie_vs_watched.setdefault(movie_id, list()).append(user_id)
             self.user_vs_watched.setdefault(user_id, list()).append(movie_id)
 
+        # Transform into sparse one-hot matrices and add implicit feedback if necessary
         train_uid_unique, train_uid_index = np.unique(X_train[:, 0], return_inverse=True)
         train_mid_unique, train_mid_index = np.unique(X_train[:, 1], return_inverse=True)
         user_data_train = self._augment_user_id(train_uid_unique)
         movie_data_train = self._augment_movie_id(train_mid_unique)
 
+        # Use RelationBlocks to improve performance
         block_user_train = RelationBlock(train_uid_index, user_data_train)
         block_movie_train = RelationBlock(train_mid_index, movie_data_train)
 
@@ -824,8 +850,9 @@ class BFM(BaseModel):
         else:
             self.model = myfm.MyFMRegressor(rank=self.k, random_seed=self.random_state)
 
-        self.model.fit(None, y_train, n_iter=self.iter, X_rel=[block_user_train, block_movie_train])
+        self.model.fit(None, y_train, n_iter=self.iter, X_rel=[block_user_train, block_movie_train], group_shapes=feature_group_sizes)
 
+        # Log test results if integrated testing was specified
         if test_size > 0.001:
             y_pred = self.predict(X_test)
             # log only validation rmse, we have no training rmse
@@ -835,15 +862,25 @@ class BFM(BaseModel):
 
 
     def predict(self, X): 
+        """
+        Predict the ratings of given new user/movie combinations
+        Parameters
+        ----------
+        X : np.array([number of predictions], 2)
+            array containing user-movie pairs for the rating predictions
+        """
+        # Add implicit information to feature vector to predict if the model is trained with those
         test_uid_unique, test_uid_index = np.unique(X[:, 0], return_inverse=True)
         test_mid_unique, test_mid_index = np.unique(X[:, 1], return_inverse=True)
         user_data_test = self._augment_user_id(test_uid_unique)
         movie_data_test = self._augment_movie_id(test_mid_unique)
+        # Use RelationBlocks to improve performance
         block_user_test = RelationBlock(test_uid_index, user_data_test)
         block_movie_test = RelationBlock(test_mid_index, movie_data_test)
         X_test = [block_user_test, block_movie_test]
         if self.with_ord:
             ordinal_probs = self.model.predict_proba(None, X_test)
+            # Compute the expected value of the rating from class probabilities
             ratings = ordinal_probs.dot(np.arange(1, 6))
         else:
             ratings = self.model.predict(None, X_test)
@@ -851,29 +888,6 @@ class BFM(BaseModel):
 
 
     def fit_transform(self, X, y, W, data, test_size = 0, iter = 500):
-        """
-        Fit data and return predictions on the same matrix.
-        Parameters
-        ----------
-        X : pd.Dataframe.Column
-            dataframe column containing coordinates of the observed entries in the matrix
-        y : int 
-            values of the observed entries in the matrix
-        W : np.array(N_USERS, N_MOVIES)
-            mask matrix for observed entries; True entries in the mask corresponds
-            to observed values, False entries to unobserved values
-        test_size : float [0,1] (optional)
-            percentage of the training data to be used as validation split;
-            set to 0 when the model has to be used for inference
-        
-        normalization : str or None
-            strategy to be used to normalize the data, None for no normalization
-        
-        invert_norm : bool
-            boolean flag to invert the normalization of the predictions
-            set to False if the input data were not normalized
-        """
-
         raise NotImplementedError()
     
     
@@ -930,7 +944,7 @@ class BFM(BaseModel):
         return rmse
 
 
-    # given user/movie ids, add additional infos and return it as sparse
+    # Given unique user IDs, convert to sparse matrix and add implicit infos if needed
     def _augment_user_id(self, user_ids):
         Xs = []
         X_uid = sps.lil_matrix((len(user_ids), self.USER_ID_SIZE))
@@ -947,6 +961,7 @@ class BFM(BaseModel):
             Xs.append(X_iu)
         return sps.hstack(Xs, format='csr')
 
+    # Given unique movie IDs, convert to sparse one-hot matrix and add implicit infos if needed
     def _augment_movie_id(self, movie_ids):
         Xs = []
         X_movie = sps.lil_matrix((len(movie_ids), self.MOVIE_ID_SIZE))

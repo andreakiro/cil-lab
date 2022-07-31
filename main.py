@@ -181,13 +181,22 @@ def experiments_on_bfm_options_by_iters(data):
 
 def experiments_on_ensemble_bfm(data):
     train, test = train_test_split(data, test_size=0.2, random_state=42)
-    model = BFM(50, N_USERS, N_MOVIES, 50, verbose=1, with_ord=True, with_iu=True, with_ii=True)
-    model.fit(train, None, None, iter=500)
+    pattern = {'': [False, False, False],
+               'ii': [False, False, True],
+               'iu': [False, True, False],
+               'iu_ii': [False, True, True],
+               'ord': [True, False, False],
+               'ord_ii': [True, False, True],
+               'ord_iu': [True, True, False],
+               'ord_iu_ii': [True, True, True]}
+    for desc, i in pattern.items():
+        model = BFM(50, N_USERS, N_MOVIES, 50, verbose=1, with_ord=i[0], with_iu=i[1], with_ii=i[2])
+        model.fit(train, None, None, iter=500)
 
-    X_test = test[:, :2]
-    test_predictions = model.predict(X_test)
+        X_test = test[:, :2]
+        test_predictions = model.predict(X_test)
 
-    np.savetxt('log/ensemble/bfm_preds.csv', test_predictions, header='Prediction', comments='')
+        np.savetxt('log/ensemble/bfm_preds_' + desc + '.csv', test_predictions, header='Prediction', comments='')
     # Also save true values of predictions for test set
     np.savetxt('log/ensemble/test_true.csv', test[:, 2], header='Prediction', comments='')
 
@@ -212,7 +221,7 @@ def experiments_on_ensemble_similarity(data):
             test_predictions = []
             for row in test:
                 test_predictions.append(predictions[row[0]][row[1]])
-            
+
             np.savetxt('log/ensemble/sim_preds_w_' + str(weighting) + '_n_' + str(k) + '.csv', test_predictions, header='Prediction', comments='')
 
     model = SimilarityMethods(0, N_USERS, N_MOVIES, similarity_measure="PCC", weighting='normal', method="both", use_std=True, k=30, user_weight=0.06, signifiance_threshold=None)
@@ -241,6 +250,6 @@ def experiments_on_ensemble_als(data):
         test_predictions.append(predictions[row[0]][row[1]])
 
     np.savetxt('log/ensemble/als_preds.csv', test_predictions, header='Prediction', comments='')
-    
+
 if __name__ == '__main__':
     main()
