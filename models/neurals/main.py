@@ -1,5 +1,9 @@
-# Driver for neural-based models
-################################
+"""
+Main Driver for neural-based techniques
+Networks that can be used with this module:
+  - DeepRec (NVIDIA) - deep autoencoder for CF
+  - LightGCN - graph convolution network for CF
+"""
 
 import os
 import torch
@@ -47,19 +51,16 @@ args = parser.parse_args()
 #######################################
 
 def main():
-    args.out_path = pathlib.Path(config.OUT_DIR, args.model, args.rname)
-    if args.mode == 'train' and os.path.exists(args.out_path):
-        print(f'{args.out_path} already exists, please change name')
+    args.model_output = pathlib.Path(config.OUT_DIR, args.model, args.rname)
+    if args.mode == 'train' and os.path.exists(args.model_output):
+        print(f'{args.model_output} already exists, please change name')
         return
-
+    
     try:
         activate_wnb(args)
-        os.makedirs(args.out_path, exist_ok=True)
+        os.makedirs(args.model_output, exist_ok=True)
         func = register[args.model][args.mode]
         func(args) # call train / test on model
-    except KeyError as error:
-        print(f'Register {args.model} - {args.mode} is invalid')
-        print(error)
     except Exception as error:
         print(f'Error: {error}')
         print(traceback.format_exc())

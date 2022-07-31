@@ -1,7 +1,9 @@
-# Custom DataLoader for DeepRec NVIDIA model
-# Dataset of (user_index, item_index, rating)
-# Adapted from github.com/NVIDIA/DeepRecommender
-################################################
+"""
+Custom DataLoader for DeepRec NVIDIA model
+Dataset of (user_index, item_index, rating)
+Adapted from github.com/NVIDIA/DeepRecommender
+Copyright (c) 2017 NVIDIA Corporation
+"""
 
 import torch
 import random
@@ -136,6 +138,10 @@ class UserItemRecDataProvider:
                 yield mini_batch
             else:
                 yield mini_batch, keys[s_ind - 1]
+
+    def print_details_layers(self):
+        print('Total items found: {}'.format(len(self.data.keys())))
+        # print('Vector dim: {}'.format(self.vector_dim))
 
     @property
     def vector_dim(self):

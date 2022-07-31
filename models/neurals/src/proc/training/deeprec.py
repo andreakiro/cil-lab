@@ -1,138 +1,33 @@
-# Copyright (c) 2017 NVIDIA Corporation
-#######################################
+"""
+Training algorithm for DeepRec model
+Adapted from github.com/NVIDIA/DeepRecommender
+Copyright (c) 2017 NVIDIA Corporation
+"""
 
-import os
-import copy
 import time
-
-import glob
-from pathlib import Path
-from math import sqrt
+import math
+import wandb
 import numpy as np
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
+from torch import nn
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import MultiStepLR
 
-import src.loader.deeprec as L
 import src.models.deeprec as deeprec
-from src.configs import config
-
-import wandb as wandb
-import pickle
-
-#######################################
-############### HELPERS ###############
-#######################################
-
-def set_optimizer(model, optimizer, lr, wd, mom=0.9):
-  optimizers = {
-    'adam': optim.Adam(
-      model.parameters(),
-      lr=lr,
-      weight_decay=wd,
-    ),
-
-    'adagrad': optim.Adagrad(
-      model.parameters(),
-      lr=lr,
-      weight_decay=wd,
-    ),
-
-    'momentum': optim.SGD(
-      model.parameters(),
-      lr=lr,
-      momentum=mom,
-      weight_decay=wd,
-    ),
-
-    'rmsprop': optim.RMSprop(
-      model.parameters(),
-      lr=lr,
-      momentum=mom,
-      weight_decay=wd,
-    ),
-  }
-
-  try:
-    return optimizers[optimizer]
-  except ValueError:
-    return ValueError('Unknown optimizer.')
-
-def print_details_layers(dl):
-  print('Data loaded..!')
-  print('Total items found: {}'.format(len(dl.data.keys())))
-  print('Vector dim: {}'.format(dl.vector_dim))
-
-def evaluate(encoder, evaluation_data_layer, device):
-  with torch.no_grad():
-    # evaluate the encoder
-    encoder.eval()
-    denom = 0.0
-    total_epoch_loss = 0.0
-
-    for i, (eval, src) in enumerate(evaluation_data_layer.iterate_one_epoch_eval()):
-      inputs = Variable(src.cuda().to_dense() if device == 'cuda' else src.to_dense())
-      targets = Variable(eval.cuda().to_dense() if device == 'cuda' else eval.to_dense())
-      outputs = encoder(inputs)
-      loss, num_ratings = deeprec.MSEloss(outputs, targets)
-      total_epoch_loss += loss.item()
-      denom += num_ratings.item()
-
-  return sqrt(total_epoch_loss / denom)
-
-#######################################
-################ TRAIN ################
-#######################################
+from src.helpers.optimizer import *
+from src.helpers.io import *
 
 def train_deeprec(args):
-  # NVIDIA params
-  train_params = {
-    'batch_size': int(args.batch_size),
-    'data_file': args.path_to_train_data,
-    'major': args.major,
-    'itemIdInd': 1,
-    'userIdInd': 0,
-  }
-
-  # define run name of experiment
-  l = glob.glob(args.logdir + '/*')
-  filtered = [x for x in l if 'experiment' in x]
-  exp_name = 'experiment_' + str(len(filtered))
-  run_name = exp_name if wandb.run.name is None else wandb.run.name
+  train_data_layer, eval_data_layer = deeprec.load_data(
+    args, int(args.batch_size), args.path_to_eval_data)
   
-  # loads training data
-  print('Loading training data...')
-  data_layer = L.UserItemRecDataProvider(params=train_params)
-  #print_details_layers(data_layer)
+  layer_sizes = ([
+    train_data_layer.vector_dim] 
+    + [int(l) for l in args.hidden_layers.split(',')
+  ])
 
-  # loads validation data
-  if args.path_to_eval_data != '':
-    print('Loading validation data...')
-    eval_params = copy.deepcopy(train_params)
-    eval_params["data_file"] = args.path_to_eval_data
-    eval_data_layer = L.UserItemRecDataProvider(
-      params=eval_params,
-      user_id_map=data_layer.userIdMap,  # the mappings are provided
-      item_id_map=data_layer.itemIdMap,
-    )
-    eval_data_layer.src_data = data_layer.data
-    #print_details_layers(eval_data_layer)
-
-  # define layers
-  layer_sizes = (
-    [data_layer.vector_dim]
-    + [args.layer1_dim]
-    + [args.layer2_dim]
-  )
-
-  if args.layer3_dim != 0:
-    layer_sizes = layer_sizes + [args.layer3_dim]
-
-  # initialize model
-  autoenc = deeprec.AutoEncoder(
+  model = deeprec.AutoEncoder(
     layer_sizes = layer_sizes,
     nl_type = args.activation,
     is_constrained = args.constrained,
@@ -140,79 +35,58 @@ def train_deeprec(args):
     last_layer_activations = not args.skip_last_layer_nl
   )
 
-  # watch model with wandb
-  wandb.watch(autoenc)
+  if args.path_to_model is not None:
+    model.load_state_dict(torch.load(args.path_to_model))
 
-  # prepare model checkpoints
-  model_output = Path(args.logdir, run_name)
-  model_checkpoints = Path(args.out_path, 'checkpoints')
-  os.makedirs(model_checkpoints, exist_ok=True)
-
-  # retrieve saved model
-  if model_output.is_file():
-    print('Loading model from: {}'.format(model_output))
-    autoenc.load_state_dict(torch.load(model_output))
-
-  # print architecture
-  # print(autoenc)
-  
-  if args.device == 'cuda':
-    # trying to use gpus
-    gpu_ids = [int(g) for g in args.gpu_ids.split(',')]
-    print('Using GPUs: {}'.format(gpu_ids))
-  
-    if len(gpu_ids) > 1:
-      autoenc = nn.DataParallel(autoenc, device_ids=gpu_ids)
-
-    autoenc = autoenc.cuda()
-  
-  # set training optimizer
-  optimizer = set_optimizer(
-    autoenc,
-    args.optimizer, 
-    args.learning_rate, 
-    args.weight_decay
-  )
-
+  optimizer = set_optimizer(model, args.optimizer, args.learning_rate, args.weight_decay)
   if args.optimizer == 'momentum':
     scheduler = MultiStepLR(optimizer, milestones=[24, 36, 48, 66, 72], gamma=0.5)
 
   if args.noise_prob > 0.0:
     dp = nn.Dropout(p=args.noise_prob)
 
-  # list of epoch num when we'll save model
-  chkpts = [args.epochs/args.num_checkpoints * x for x in range(1, args.num_checkpoints)]
-
-  autoenc.train()
-
-  # starts training the model
+  wandb.watch(model)
+  model.to(args.device)
+  model.train()
   logs = dict()
+  st = time.time()
+
+  # list of epoch num when we'll save model
+  epoch_checkpoints = [round(args.epochs/args.num_checkpoints * (x + 1), 0) for x in range(args.num_checkpoints)]
   print('Starting training for {} epochs'.format(args.epochs))
-  for epoch in range(int(args.epochs)):
-    #print('Doing epoch {} of {}'.format(epoch, args.epochs))
-    e_start_time = time.time()
-    total_epoch_loss = 0.0
+
+  for i_epoch in range(int(args.epochs)):
+    epoch = i_epoch + 1
+    e_st = time.time()
+
+    wandb.log({'epoch': epoch})
+    training_loss = 0.0
+    epoch_loss = 0.0
     denom = 0.0
 
-    for _, mb in enumerate(data_layer.iterate_one_epoch()):
-      inputs = Variable(mb.cuda().to_dense() if args.device == 'cuda' else mb.to_dense())
+    for i_batch, batch in enumerate(train_data_layer.iterate_one_epoch()):
+      if torch.cuda.is_available():
+        batch = batch.cuda()
+
+      inputs = Variable(batch.to_dense())    
       optimizer.zero_grad()
-      outputs = autoenc(inputs)
+      outputs = model(inputs)
       loss, num_ratings = deeprec.MSEloss(outputs, inputs)
       loss = loss / num_ratings
       loss.backward()
       optimizer.step()
-      total_epoch_loss += loss.item()
+      training_loss += loss.item()
+      epoch_loss += loss.item()
       denom += 1
 
       if args.dense_refeeding_steps > 0:
-        # magic data augmentation trick (dense refeeding)
         for t in range(args.dense_refeeding_steps):
           inputs = Variable(outputs.data)
           if args.noise_prob > 0.0:
             inputs = dp(inputs)
+          
           optimizer.zero_grad()
-          outputs = autoenc(inputs)
+          outputs = model(inputs)
           loss, num_ratings = deeprec.MSEloss(outputs, inputs)
           loss = loss / num_ratings
           loss.backward()
@@ -221,38 +95,47 @@ def train_deeprec(args):
     if args.optimizer == 'momentum':
       scheduler.step()
 
-    e_end_time = time.time()
-    wandb.log({'train_RMSE': sqrt(total_epoch_loss / denom), 'epoch': epoch})
-    print('Epoch {} finished in {:.2f} seconds'.format(epoch, e_end_time - e_start_time))
-    print('\tTRAINING RMSE loss: {:.2f}'.format(sqrt(total_epoch_loss / denom)))
-    logs[epoch + 1] = {'train_loss': total_epoch_loss / denom}
-
-    # early termination
-    if np.isnan(sqrt(total_epoch_loss / denom)):
-      wandb.finish()
+    wandb.log({'train_RMSE': math.sqrt(epoch_loss / denom), 'epoch': epoch})
+    print(f'Epoch {epoch} training RMSE loss: {math.sqrt(epoch_loss / denom):.2f}')
+    logs[epoch] = {'train_loss': epoch_loss / denom}
+    
+    if np.isnan(math.sqrt(epoch_loss / denom)):
+      wandb.finish() # early termination
       return
 
-    # evaluate model
-    if (epoch + 1) % args.evaluation_frequency == 0:
+    if epoch % args.eval_freq == 0:
       if args.path_to_eval_data != '':
-        eval_loss = evaluate(autoenc, eval_data_layer, args.device)
+        eval_loss = evaluate(model, eval_data_layer, args.device)
         wandb.log({'val_RMSE': eval_loss, 'epoch': epoch})
-        print('\tEVALUATION RMSE loss: {:.2f}'.format(eval_loss))
-        logs[epoch + 1]['eval_loss'] = eval_loss
-        autoenc.train()
+        print(f'Epoch {epoch} evaluation loss: {eval_loss:.2f}')
+        logs[epoch]['eval_loss'] = eval_loss
+        model.train() # revert to train mode
 
-    # save checkpoint
-    if epoch in chkpts:
-      version = 'epoch_' + str(epoch) + '.model'
-      torch.save(autoenc.state_dict(), Path(model_checkpoints, version))
+    print('Epoch {} finished in {:.2f} seconds'.format(epoch, time.time() - e_st))
 
-  path_logs = Path(args.out_path, config.LOG_FILE.format(epochs=args.epochs))
-  with open(path_logs, 'wb') as handle:
-      pickle.dump(logs, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-  # save std model
-  print('Saving model to {}'.format(Path(args.out_path, 'last.model')))
-  torch.save(autoenc.state_dict(), Path(args.out_path, 'last.model'))
+    if epoch in epoch_checkpoints:
+      save_model(args, model, epoch)
   
-  # close training
+  save_log_losses(args, logs)
   wandb.finish()
+  print(f'Finished all in {time.time() - st:.2f} seconds')
+
+#######################################
+################ EVAL #################
+#######################################
+
+def evaluate(model, evaluation_data_layer, device):
+  with torch.no_grad():
+    model.eval()
+    total_epoch_loss = 0.0
+    denom = 0.0
+
+    for i, (eval, src) in enumerate(evaluation_data_layer.iterate_one_epoch_eval()):
+      inputs = Variable(src.cuda().to_dense() if device == 'cuda' else src.to_dense())
+      targets = Variable(eval.cuda().to_dense() if device == 'cuda' else eval.to_dense())
+      outputs = model(inputs)
+      loss, num_ratings = deeprec.MSEloss(outputs, targets)
+      total_epoch_loss += loss.item()
+      denom += num_ratings.item()
+
+  return math.sqrt(total_epoch_loss / denom)

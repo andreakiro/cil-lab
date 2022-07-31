@@ -1,5 +1,7 @@
-# Configuration panel for hard params
-#####################################
+"""
+Configuration panel for hard params
+To be used in src code to avoid errors
+"""
 
 from easydict import EasyDict as edict
 from pathlib import Path
@@ -25,7 +27,7 @@ config.EVAL_FILE = 'validation.data'
 config.TEST_FILE = 'testing.data'
 
 config.LOG_FILE = 'logs-losses-{epochs}.pickle'
-config.SUB_FILE = 'sub-{model}.csv'
+config.SUB_FILE = 'sub-{rname}.csv'
 
 # LIGHTGN
 

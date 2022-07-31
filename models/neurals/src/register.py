@@ -1,11 +1,13 @@
-# Register for models and datasets
-##################################
+"""
+Register for models and datasets
+To be used in the main driver
+"""
 
 from easydict import EasyDict as edict
 
 from src.models.deeprec import AutoEncoder
 from src.proc.training.deeprec import train_deeprec
-from src.proc.testing.deeprec import eval
+from src.proc.testing.deeprec import test_deeprec
 
 from src.models.lightgcn import LightGCN
 from src.proc.training.lightgcn import train_lightgcn
@@ -19,7 +21,7 @@ unavailable = lambda x: x
 register.deeprec = edict()
 register.deeprec.model = AutoEncoder
 register.deeprec.train = train_deeprec
-register.deeprec.test = eval
+register.deeprec.test = test_deeprec
 
 register.lightgcn = edict()
 register.lightgcn.model = LightGCN

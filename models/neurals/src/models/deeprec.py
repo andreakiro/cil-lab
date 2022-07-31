@@ -1,11 +1,17 @@
-# Copyright (c) 2017 NVIDIA Corporation
-#######################################
+"""
+DeepRec model PyTorch implementation
+Adapted from github.com/NVIDIA/DeepRecommender
+Copyright (c) 2017 NVIDIA Corporation
+"""
 
+import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as weight_init
 from torch.autograd import Variable
+import src.loader.deeprec as L
+from src.helpers.activation import activation
 
 #######################################
 ############ DEEPREC MODEL ############
@@ -94,58 +100,9 @@ class AutoEncoder(nn.Module):
     def forward(self, x):
         return self.decode(self.encode(x))
 
-    def print_architecture(self):
-        print("******************************")
-        print("******************************")
-
-        print(self.layer_sizes)
-        print("Dropout drop probability: {}".format(self._dp_drop_prob))
-
-        print("Encoder pass:")
-        for ind, w in enumerate(self.encode_w):
-            print(w.data.size())
-            print(self.encode_b[ind].size())
-
-        print("Decoder pass:")
-        if self.is_constrained:
-            print('Decoder is constrained')
-            for ind, w in enumerate(list(reversed(self.encode_w))):
-                print(w.transpose(0, 1).size())
-                print(self.decode_b[ind].size())
-        else:
-            for ind, w in enumerate(self.decode_w):
-                print(w.data.size())
-                print(self.decode_b[ind].size())
-
-        print("******************************")
-        print("******************************")
-
 #######################################
 ############### HELPERS ###############
 #######################################
-
-def activation(input, kind):
-    # select activation func.
-    if kind == 'selu':
-        return F.selu(input)
-    elif kind == 'relu':
-        return F.relu(input)
-    elif kind == 'relu6':
-        return F.relu6(input)
-    elif kind == 'sigmoid':
-        return torch.sigmoid(input)
-    elif kind == 'tanh':
-        return torch.tanh(input)
-    elif kind == 'elu':
-        return F.elu(input)
-    elif kind == 'lrelu':
-        return F.leaky_relu(input)
-    elif kind == 'swish':
-        return input*torch.sigmoid(input)
-    elif kind == 'none':
-        return input
-    else:
-        raise ValueError('Unknown non-linearity type')
 
 def MSEloss(inputs, targets, size_average=False):
     # computes MSE loss during training
@@ -154,3 +111,28 @@ def MSEloss(inputs, targets, size_average=False):
     criterion = nn.MSELoss(reduction='sum' if not size_average else 'mean')
     return criterion(inputs * mask.float(), targets), Variable(torch.Tensor([1.0])) if size_average else num_ratings
     
+def load_data(args, batch_size, eval_path):
+    train_params = {
+        'batch_size': batch_size,
+        'data_file': args.path_to_train_data,
+        'major': args.major,
+        'itemIdInd': 1,
+        'userIdInd': 0,
+    } # NVIDIA params
+
+    print('Loading training data...')
+    train_data_layer = L.UserItemRecDataProvider(params=train_params)
+
+    eval_data_layer = None
+    if args.path_to_eval_data != '':
+        print('Loading evaluation data...')
+        eval_params = copy.deepcopy(train_params)
+        eval_params['data_file'] = eval_path
+        eval_data_layer = L.UserItemRecDataProvider(
+            params=eval_params,
+            user_id_map=train_data_layer.userIdMap,  # the mappings are provided
+            item_id_map=train_data_layer.itemIdMap,
+        )
+        eval_data_layer.src_data = train_data_layer.data
+
+    return train_data_layer, eval_data_layer

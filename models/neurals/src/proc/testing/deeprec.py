@@ -1,57 +1,26 @@
-from src.helpers.converter import convert2CILdictionary
-import src.loader.deeprec as L
-import src.models.deeprec as deeprec
-import numpy as np
-import copy
+"""
+Testing algorithm for DeepRec model
+Adapted from github.com/NVIDIA/DeepRecommender
+Copyright (c) 2017 NVIDIA Corporation
+"""
+
 import torch
 from torch.autograd import Variable
-from pathlib import Path
-from src.configs import config
 
-#######################################
-################ EVAL #################
-#######################################
+import src.loader.deeprec as L
+import src.models.deeprec as deeprec
+from src.helpers.io import *
 
-def eval(args):
-    # NVIDIA params
-    train_params = {
-        'batch_size': 1,
-        'data_file': args.path_to_train_data,
-        'major': args.major,
-        'itemIdInd': 1,
-        'userIdInd': 0,
-    }
+def test_deeprec(args):
+    train_data_layer, eval_data_layer = deeprec.load_data(
+        args, 1, args.path_to_test_data) # batch size of 1 
 
-    # loads training data
-    print('Loading training data...')
-    data_layer = L.UserItemRecDataProvider(params=train_params)
+    layer_sizes = ([
+        train_data_layer.vector_dim] 
+        + [int(l) for l in args.hidden_layers.split(',')
+    ])
 
-    # loads evaluation (sub) data
-    print("Loading submission data")
-    eval_params = copy.deepcopy(train_params)
-    eval_params["data_file"] = args.path_to_test_data
-    eval_data_layer = L.UserItemRecDataProvider(
-      params=eval_params,
-      user_id_map=data_layer.userIdMap,  # the mappings are provided
-      item_id_map=data_layer.itemIdMap,
-    )
-    eval_data_layer.src_data = data_layer.data
-
-    print("Total submission items found: {}".format(len(eval_data_layer.data.keys())))
-    print("Vector dim: {}".format(eval_data_layer.vector_dim))
-
-    # define layers
-    layer_sizes = (
-        [data_layer.vector_dim]
-        + [args.layer1_dim]
-        + [args.layer2_dim]
-    )
-
-    if args.layer3_dim != 0:
-        layer_sizes = layer_sizes + [args.layer3_dim]
-
-    # initialize model
-    autoenc = deeprec.AutoEncoder(
+    model = deeprec.AutoEncoder(
         layer_sizes = layer_sizes,
         nl_type = args.activation,
         is_constrained = args.constrained,
@@ -61,37 +30,27 @@ def eval(args):
 
     # load weights from saved model
     print('Loading model from {}'.format(args.path_to_model))
-    autoenc.load_state_dict(torch.load(args.path_to_model))
-    autoenc.eval()
+    model.load_state_dict(torch.load(args.path_to_model))
+    model.eval()
     
     if args.device == 'cuda':
-        autoenc = autoenc.cuda()
+        model = model.cuda()
 
-    inv_userIdMap = {v: k for k, v in data_layer.userIdMap.items()}
-    inv_itemIdMap = {v: k for k, v in data_layer.itemIdMap.items()}
+    inv_userIdMap = {v: k for k, v in train_data_layer.userIdMap.items()}
+    inv_itemIdMap = {v: k for k, v in train_data_layer.itemIdMap.items()}
 
     preds = dict()
 
     for i, ((out, src), majorInd) in enumerate(eval_data_layer.iterate_one_epoch_eval(for_inf=True)):
         inputs = Variable(src.cuda().to_dense() if args.device == 'cuda' else src.to_dense())
         targets_np = out.to_dense().numpy()[0, :]
-        outputs = autoenc(inputs).cpu().data.numpy()[0, :]
+        outputs = model(inputs).cpu().data.numpy()[0, :]
         non_zeros = targets_np.nonzero()[0].tolist()
         major_key = inv_userIdMap[majorInd]  # user
         preds[major_key] = []
         for ind in non_zeros:
             preds[major_key].append((inv_itemIdMap[ind], outputs[ind]))
         if i % 1000 == 0:
-            print("Done: {} predictions".format(i))
+            print(f'Predicted {i} batches yet')
 
-    preds = convert2CILdictionary(preds)
-
-    # write predictions
-    out_file = Path(args.out_path, config.SUB_FILE.format(model=args.model))
-    with open(out_file, 'w') as f:
-        f.write('Id,Prediction\n')
-        for item in preds:
-            for user, rating in preds[item]:
-                rating = np.clip(rating, 1.0, 5.0)
-                f.write('r{}_c{},{}\n'.format(user, item, rating)) 
-    
+    save_submission(args, preds)

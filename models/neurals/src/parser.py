@@ -1,6 +1,7 @@
-# Define parser with full params
-# Default currently set at optimal
-##################################
+"""
+Parser and subparsers init helpers
+Below defaults are set to report results
+"""
 
 from src.configs import config
 
@@ -19,9 +20,11 @@ def fill_deeprec_ps(deeprec_ps):
     # model architecture
     deeprec_ps.add_argument('--major', type=str, default='users', help='major of the model (users or items)')
     deeprec_ps.add_argument('--activation', type=str, default='selu', help='type of the non-linearity used in activations')
-    deeprec_ps.add_argument('--layer1_dim', type=int, default=512, help='dimension of the hidden layer 1')
-    deeprec_ps.add_argument('--layer2_dim', type=int, default=128, help='dimension of the hidden layer 2')
-    deeprec_ps.add_argument('--layer3_dim', type=int, default=1024, help='dimension of the hidden layer 3')
+    deeprec_ps.add_argument('--constrained', type=bool, default=False, help='constraints definition on autoencoder')
+    deeprec_ps.add_argument('--hidden_layers', type=str, default='512,128,1024', metavar='N', help='hidden layer sizes, comma-separated')
+    deeprec_ps.add_argument('--layer1_dim', type=int, default=512, help='dimension of the hidden layer 1, to be used for wandb sweeps')
+    deeprec_ps.add_argument('--layer2_dim', type=int, default=128, help='dimension of the hidden layer 2, to be used for wandb sweeps')
+    deeprec_ps.add_argument('--layer3_dim', type=int, default=1024, help='dimension of the hidden layer 3, to be used for wandb sweeps')
 
     # training parameters
     deeprec_ps.add_argument('--epochs', type=int, default=300, help='maximum number of epochs for training')
@@ -34,15 +37,12 @@ def fill_deeprec_ps(deeprec_ps):
     deeprec_ps.add_argument('--dropout', type=float, default=0.2, help='dropout probabilitz during training')
     deeprec_ps.add_argument('--noise_prob', type=float, default=0.0, help='decoding noise probability')
     deeprec_ps.add_argument('--dense_refeeding_steps', type=int, default=2, help='freq. of data augmentation')
+    deeprec_ps.add_argument('--skip_last_layer_nl', type=bool, default=False, help='application of non-linearity on last layer')
 
     # other parameters
-    deeprec_ps.add_argument('--constrained', type=bool, default=False, help='constraints definition on autoencoder')
-    deeprec_ps.add_argument('--skip_last_layer_nl', type=bool, default=False, help='application of non-linearity on last layer')
     deeprec_ps.add_argument('--num_checkpoints', type=int, default=4, help='number of saved model checkpoints (including last)')
-    deeprec_ps.add_argument('--evaluation_frequency', type=int, default=1, help='frequency (epoch-based) of model evaluation')
-    deeprec_ps.add_argument('--summary_frequency', type=int, default=100, metavar='N', help='how often to save summaries')
-    deeprec_ps.add_argument('--hidden_layers', type=str, default='512,128,1024', metavar='N', help='hidden layer sizes, comma-separated')
-    deeprec_ps.add_argument('--gpu_ids', type=str, default='0', help='comma-separated gpu ids to use for data parallel training')
+    deeprec_ps.add_argument('--print_freq', type=int, default=100, metavar='N', help='how often to save summaries')
+    deeprec_ps.add_argument('--eval_freq', type=int, default=1, help='frequency (epoch-based) of model evaluation')
 
     return deeprec_ps
 
