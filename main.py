@@ -22,9 +22,11 @@ def main():
     # SVD
     # experiments_on_svd_rank(X, W)
     # ALS
-    # experiments_on_als_rank(X, W)
+    experiments_on_funk_rank(X, W)
     # Similarity
     # experiments_on_similarity(X, W)
+    # experiments_on_similarity_nn(X, W)
+    # experiments_on_similarity_user_weight(X, W)
     # BFM
     # experiments_on_bfm_rank(data)
     # experiments_on_bfm_iterations(data)
@@ -36,8 +38,10 @@ def main():
     # experiments_on_ensemble_als(data)
     # Get similarity predictions to experiment with ensemble weighting
     # experiments_on_ensemble_similarity(data)
+    # Get predictions from funkSVD for ensembling
+    # experiments_on_ensemble_funksvd(data)
     # Predict Kaggle data
-    train_and_run_on_submission_data(X, W, data)
+    # train_and_run_on_submission_data(X, W, data)
 
 
 def train_and_run_on_submission_data(X, W, data):
@@ -68,7 +72,7 @@ def experiments_on_funk_rank(X, W):
     for k in range(2, 30, 1):
         print(f"Rank {k}...")
         model = FunkSVD(i, N_USERS, N_MOVIES, k)
-        model.fit(X, None, W, 0.2, n_epochs=5000)
+        model.fit(X, None, W, 0.2, n_epochs=100)
         model.log_model_info()
         i += 1
 
@@ -131,8 +135,30 @@ def experiments_on_similarity(X, W):
                         model = SimilarityMethods(id, N_USERS, N_MOVIES, similarity_measure=similarity_measure, weighting=weighting, method=method, k=k, signifiance_threshold=signifiance_threshold)
                         model.fit(X, None, W, 0.2)
                         model.log_model_info()
-                        user_similarity, item_similarity = model.get_similarity_matrices()
                         id += 1
+    
+    print(f"Train model number {id}")
+    model = ComprehensiveSimilarityReinforcement(id, N_USERS, N_MOVIES, sample_size=15, max_iter=15, verbose=1)
+    model.fit(X, None, W, 0.2)
+    model.log_model_info()
+
+def experiments_on_similarity_nn(X, W):
+    id = 163
+    for k in [20, 25, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100, 200]:
+        print(f"Starting model {id}: number neighbors = {k}")
+        model = SimilarityMethods(id, N_USERS, N_MOVIES, similarity_measure="PCC", weighting="normal", method="item", k=k, verbose=1)
+        model.fit(X, None, W, 0.2)
+        model.log_model_info()
+        id += 1
+
+def experiments_on_similarity_user_weight(X, W):
+    id = 176
+    for user_weight in [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5]:
+        print(f"Starting model {id}: user_weight = {user_weight}")
+        model = SimilarityMethods(id, N_USERS, N_MOVIES, similarity_measure="PCC", weighting="normal", method="both", k=30, user_weight=user_weight, verbose=1)
+        model.fit(X, None, W, 0.2)
+        model.log_model_info()
+        id += 1
 
 
 def experiments_on_bfm_iterations(data):
@@ -202,8 +228,8 @@ def experiments_on_ensemble_bfm(data):
 
 
 def experiments_on_ensemble_similarity(data):
-    train, test = train_test_split(data, test_size=0.2, random_state=42)
-    X, W = get_input_matrix(train)
+    X, W = get_input_matrix(data)
+    test = load_submission_data(SUBMISSION_DATA_PATH)
     W_test = get_test_mask(test)
 
     weightings = ['normal', None]
@@ -233,8 +259,8 @@ def experiments_on_ensemble_similarity(data):
     for row in test:
         test_predictions.append(predictions[row[0]][row[1]])
     
-    np.savetxt('log/ensemble/sim_preds_w_normal_n_30_improved.csv', test_predictions, header='Prediction', comments='')
-
+    np.savetxt('log/ensemble_test/sim_preds_w_none_n_10000.csv', test_predictions, header='Prediction', comments='')
+    # np.savetxt('log/ensemble/sim_cosine.csv', test_predictions, header='Prediction', comments='')
 
 def experiments_on_ensemble_als(data):
     train, test = train_test_split(data, test_size=0.2, random_state=42)
@@ -251,5 +277,20 @@ def experiments_on_ensemble_als(data):
 
     np.savetxt('log/ensemble/als_preds.csv', test_predictions, header='Prediction', comments='')
 
+def experiments_on_ensemble_funksvd(data):
+    train, test = train_test_split(data, test_size=0.2, random_state=42, )
+    X, W = get_input_matrix(train)
+
+    model = FunkSVD(0, N_USERS, N_MOVIES, 3,)
+    model.fit(X, None, W, )
+    predictions = model.predict(None)
+
+    # Extract the predictions into one array
+    test_predictions = []
+    for row in test:
+        test_predictions.append(predictions[row[0]][row[1]])
+
+    np.savetxt('log/ensemble/funk_preds.csv', test_predictions, header='Prediction', comments='')
+    
 if __name__ == '__main__':
     main()

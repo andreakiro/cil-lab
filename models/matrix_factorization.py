@@ -597,25 +597,29 @@ class FunkSVD(BaseModel):
         self.reg = reg
         self.lr = lr
 
-        X_train = data.sample(frac=0.8, random_state=self.random_state)
+        X_train = data.sample(frac=1-test_size, random_state=self.random_state)
         X_val = data.drop(X_train.index.tolist())
 
         if not self.verbose: self.__block_print()
+
+        es = True if len(X_val) > 0 else False
 
         from funk_svd import SVD as FSVD
         self.svd = FSVD(lr=lr,
                   reg=reg,
                   n_epochs=n_epochs, 
                   n_factors=self.k, 
-                  early_stopping=True, 
-                  shuffle=False,
-                  min_delta=0.0001,
+                  early_stopping=es, 
+                  shuffle=True,
+                  min_delta=0.00001,
                   min_rating=1, 
                   max_rating=5)
         
-
-        self.svd.fit(X=X_train, X_val=X_val)
-        self.validation_rmse = self.svd.metrics_['RMSE'].values[:-1].tolist()
+        if len(X_val) == 0: 
+            self.svd.fit(X=X_train)
+        else: 
+            self.svd.fit(X=X_train, X_val=X_val)
+            self.validation_rmse = self.svd.metrics_['RMSE'].values[:-1].tolist()
 
         if not self.verbose: self.__enable_print()
     
