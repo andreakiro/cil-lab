@@ -57,3 +57,21 @@ $ env2lmod
 $ module load gcc/6.3.0 eth_proxy hdf5/1.10.1
 $ bsub -W 08:00 -n 1 -R "rusage[mem=8192]" wandb agent <USERNAME/PROJECTNAME/SWEEPID> --count $NUM
 ```
+
+## Args run of paper results
+**Training**
+```
+$ python main.py
+    --mode train
+    --activation selu
+    --layer1_dim 512
+    --layer2_dim 128
+    --layer3_dim 1024
+    --epochs 20
+    --optimizer momentum
+    --learning_rate 0.01
+    --batch_size 128
+    --weight_decay 0.001
+    --dropout 0.2
+    --dense_refeeding_steps 2
+```
