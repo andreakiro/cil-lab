@@ -12,9 +12,9 @@ config.USERS = 10000
 config.MOVIES = 1000
 
 config.RANDOM_SEED = 42
-config.TRAIN_SIZE = 1176951
+config.TRAIN_SIZE = 0.8
 
-config.DATA_DIR = 'data_chic'
+config.DATA_DIR = 'data'
 config.LOG_DIR = 'logs'
 config.OUT_DIR = 'logs'
 config.SUB_DIR = Path(config.OUT_DIR, 'out-subs')

@@ -88,6 +88,7 @@ def evaluate(encoder, evaluation_data_layer, cuda):
 #######################################
 
 def train(args, config, params, cuda):
+  print(args)
   # setup wandb
   wandb.init(
     project = 'cil-lab',

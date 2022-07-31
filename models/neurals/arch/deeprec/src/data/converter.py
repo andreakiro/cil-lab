@@ -59,7 +59,7 @@ def extract_users_items_predictions(data_df):
 
 def preprocess_deeprec():
     # get raw data
-    raw_data = pd.read_csv("../../../data/data_train.csv") # TODO
+    raw_data = pd.read_csv("../../../../data/data_train.csv") # TODO
     umber_of_users, number_of_movies = config.USERS, config.MOVIES
     os.makedirs(config.lightgcn.DATA_DIR, exist_ok=True)
 
@@ -96,7 +96,7 @@ def preprocess_deeprec():
     val_df.to_csv(config.EVAL_DATA, index=False)
 
     # create and save submission data
-    sub_pd = pd.read_csv("../../../data/sampleSubmission.csv") # TODO
+    sub_pd = pd.read_csv("../../../../data/sampleSubmission.csv") # TODO
     sub_users, sub_movies, sub_ratings = extract_users_items_predictions(sub_pd)
     sub_dataset = np.column_stack((sub_users, sub_movies, sub_ratings))
     sub_df = pd.DataFrame(data=sub_dataset)
