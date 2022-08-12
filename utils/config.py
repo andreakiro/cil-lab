@@ -7,3 +7,9 @@ KAGGLE = True
 GENERATE_SUBM = True
 MESSAGE = "Testin refactoring of the model"
 LOG_MODEL_INFO = True
+
+# FOR MAIN
+N_USERS = 10000
+N_MOVIES = 1000
+DATA_PATH = 'data/data_train.csv'
+SUBMISSION_DATA_PATH = 'data/sampleSubmission.csv'

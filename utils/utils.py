@@ -2,13 +2,13 @@ import pandas as pd
 import numpy as np
 import math
 import os
-from sklearn.model_selection import train_test_split
-
-N_MOVIES = 1000
-N_USERS = 10000
+from utils.config import N_MOVIES, N_USERS
 
 
 def get_test_mask(test):
+    '''
+    From the test variable to predict, create a sparse matrix representation
+    '''
     W_test = np.full((N_USERS, N_MOVIES), False)
     for sample in test:
         W_test[sample[0]][sample[1]] = True
@@ -16,6 +16,9 @@ def get_test_mask(test):
 
 
 def load_data(data_path):
+    '''
+    Load the training data
+    '''
     data_pd = pd.read_csv(data_path) 
     users, movies = [np.squeeze(arr) for arr in np.split(data_pd.Id.str.extract('r(\d+)_c(\d+)').values.astype(int) - 1, 2, axis=-1)]
     predictions = data_pd.Prediction.values
@@ -26,6 +29,9 @@ def load_data(data_path):
 
 
 def load_submission_data(data_path):
+    '''
+    Load the submission data
+    '''
     data_pd = pd.read_csv(data_path) 
     users, movies = [np.squeeze(arr) for arr in np.split(data_pd.Id.str.extract('r(\d+)_c(\d+)').values.astype(int) - 1, 2, axis=-1)]
     data = np.column_stack((np.array(users), np.array(movies)))
@@ -55,6 +61,9 @@ def get_input_matrix(data):
 
 
 def get_preds_from_matrix(data, matrix):
+    '''
+    From results in a sparse matrix form, return the predictions in a single 1D array
+    '''
     sim_preds = []
     for row in data:
         sim_preds.append(matrix[row[0]][row[1]])

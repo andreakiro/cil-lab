@@ -131,7 +131,7 @@ class BaseModel(ABC):
             self.σ = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=1).fit_transform(self.σ)
             # normalize data using z-score
             X = stats.zscore(X, axis=axis, nan_policy='omit')
-        elif technique == "min_max":
+        elif strategy == "min_max":
             self.min_val = np.nanmin(X)
             self.max_val = np.nanmax(X)
             X = (X-self.min_val)/(self.max_val-self.min_val)
@@ -146,7 +146,7 @@ class BaseModel(ABC):
         """
         if strategy == "zscore":
             return np.multiply(M, self.σ) + self.μ 
-        elif technique == "min_max":
+        elif strategy == "min_max":
             return M*(self.max_val - self.min_val) + self.min_val
         else:
             raise ValueError(f"Strategy '{strategy}' is not valid.")
