@@ -7,7 +7,7 @@
 **LightGCN**; a model based on graph convolutional networks
 * Paper available here https://arxiv.org/pdf/2002.02126.pdf
 * Original repository here https://github.com/gusye1234/LightGCN-PyTorch
-* Inspired implemention from https://github.com/LucaMalagutti/CIL-ETHZ-2021
+* Inspired implementation from https://github.com/LucaMalagutti/CIL-ETHZ-2021
 
 ## Get started with the code
 **Install required dependencies:**
